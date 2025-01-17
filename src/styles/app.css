@@ -1,10 +1,20 @@
-.App {
-  text-align: center;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root {
+  --primary-color: #2a633a;
+  --secondary-color: #f9f9f9;
+}
+body {
+  font-family: 'Inter', sans-serif;
+  padding: 0;
+  margin: 0;
 }
 
 .navbar {
-  background-color: #333;
+  background-color: var(--primary-color);
   padding: 1rem;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
 }
 
 .navbar a {
@@ -15,4 +25,148 @@
 
 .navbar a:hover {
   color: #ddd;
+}
+
+.dpg-logo {
+  height: 60px;
+}
+
+.links {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+
+.link-text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #FFF;
+  font-family: Inter;
+  font-size: 24px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: normal;
+  text-decoration-line: none;
+  text-decoration-style: solid;
+  text-decoration-skip-ink: auto;
+  text-decoration-thickness: auto;
+  text-underline-offset: auto;
+  text-underline-position: from-font;
+}
+
+.link-text.active {
+  text-decoration-line: underline;
+}
+
+.hero {
+  position: relative;
+  height: 800px;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;  /* Changed from center to flex-end to align at bottom */
+  justify-content: flex-start;  /* Changed from left to flex-start for consistency */
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6); /* This creates the dark overlay */
+  z-index: 1;
+}
+
+.hero-background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2; /* Increased z-index to appear above the overlay */
+  color: white;
+  text-align: left;
+  padding: 4rem;
+  max-width: 800px;
+  margin-bottom: 4rem;  /* Add margin at the bottom */
+}
+
+.hero-content h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.hero-content h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.hero-content p {
+  font-size: 1.2rem;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.who-we-are {
+  background-color: #f9f9f9;
+  text-align: center;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  height: 400px;
+}
+
+.who-we-are-title {
+  color: var(--primary-color);
+  font-family: Inter;
+  font-size: 64px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+  width: 1200px;
+}
+
+.who-we-are-subtitle {
+  color: var(--primary-color);
+  font-family: Inter;
+  font-size: 28px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+}
+
+.landing-page-button {
+  display: flex;
+  padding: 22px 80px;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  border-radius: 50px;
+  background: var(--primary-color);
+  color: #FFF;
+  font-family: Inter;
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+  border:none;
+  transition: all 0.3s ease;  
+  text-decoration: none;  /* Add this line */
+  cursor: pointer;  /* Add this line */
+}
+
+.landing-page-button:hover {
+  scale: 1.1;
+  cursor: pointer;
+}
+
+.landing-page-button:active {
+  scale: 1;
 }
