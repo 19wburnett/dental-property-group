@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import SellYourOffice from './pages/SellYourOffice';
 import PartnerWithUs from './pages/PartnerWIthUs';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import './styles/app.css';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
           <Route path="/sell-your-office" element={<SellYourOffice />} />
           <Route path="/partner-with-us" element={<PartnerWithUs />} />
         </Routes>
+        <Footer />
       </div>
     </Router>
   );

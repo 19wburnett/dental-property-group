@@ -114,13 +114,24 @@ body {
 }
 
 .who-we-are {
-  background-color: #f9f9f9;
+  background-color: var(--secondary-color);
   text-align: center;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-around;
   height: 400px;
+}
+
+.who-we-are-secondary {
+  background-color: var(--primary-color);
+  text-align: center;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  height: 400px;
+
 }
 
 .who-we-are-title {
@@ -130,11 +141,30 @@ body {
   font-style: normal;
   font-weight: 700;
   line-height: normal;
-  width: 1200px;
+  min-width: 600px;
+}
+
+.who-we-are-title.secondary {
+  color: var(--secondary-color);
+  font-family: Inter;
+  font-size: 64px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+  min-width: 600px;
 }
 
 .who-we-are-subtitle {
   color: var(--primary-color);
+  font-family: Inter;
+  font-size: 28px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+}
+
+.who-we-are-subtitle.secondary {
+  color: var(--secondary-color);
   font-family: Inter;
   font-size: 28px;
   font-style: normal;
@@ -169,4 +199,315 @@ body {
 
 .landing-page-button:active {
   scale: 1;
+}
+
+.landing-page-button.secondary {
+  background: var(--secondary-color);
+  color: var(--primary-color);
+}
+
+.meet-the-team {
+  background-color: var(--primary-color);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  padding: 40px;
+}
+
+.team-member-image {
+  border-radius: 50%;
+  width: 300px;
+  height: 300px;
+}
+
+.team-member-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 2rem;
+  background-color: var(--secondary-color);
+  display: flex;
+  padding: 64px 24px;
+  flex-direction: column;
+  gap: 16px;
+  align-self: stretch;
+  height: 600px;
+}
+
+.team-member-name {
+    color: #000;
+  text-align: center;
+  font-family: Inter;
+  font-size: 32px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: normal;
+}
+
+.team-member-title {
+  color: #000;
+  text-align: center;
+  font-family: Inter;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: normal;
+}
+
+.team-member-description {
+  color: #000;
+  text-align: center;
+  font-family: Inter;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: normal;
+}
+
+@media screen and (max-width:1500px) {
+  .team-member-description {
+    font-size: 14px;
+  }
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  padding: 2rem;
+  justify-items: center;
+  justify-content: center;
+}
+
+/* Add this new class for the last row */
+.team-grid > *:nth-last-child(-n+2) {
+  transform: translateX(50%);
+}
+
+@media (max-width: 768px) {
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Reset transform for mobile view */
+  .team-grid > *:nth-last-child(-n+2) {
+    transform: none;
+  }
+}
+
+.footer {
+  background-color: var(--secondary-color);
+  color: var(--primary-color);
+  padding: 2rem 0;
+  margin-top: auto;
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  padding: 0 2rem;
+}
+
+.footer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.footer-section h3 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.footer-section a {
+  color: var(--primary-color);
+  text-decoration: none;
+  margin-bottom: 0.5rem;
+}
+
+.footer-section a:hover {
+  text-decoration: underline;
+}
+
+.footer-bottom {
+  text-align: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(42, 99, 58, 0.1);
+}
+
+@media (max-width: 768px) {
+  .footer-content {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  
+  .footer-section {
+    align-items: center;
+  }
+}
+
+.hamburger {
+  display: none;
+  flex-direction: column;
+  cursor: pointer;
+  padding: 10px;
+}
+
+.hamburger span {
+  height: 3px;
+  width: 25px;
+  background: white;
+  margin: 2px 0;
+  border-radius: 2px;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    padding: 1rem;
+    position: relative;
+  }
+
+  .hamburger {
+    display: flex;
+    z-index: 100;
+  }
+
+  .links {
+    position: fixed;
+    right: -100%;
+    top: 0;
+    height: 100vh;
+    width: 70%;
+    background-color: var(--primary-color);
+    flex-direction: column;
+    padding-top: 60px;
+    transition: 0.3s ease-in-out;
+    z-index: 99;
+  }
+
+  .links.mobile-active {
+    right: 0;
+  }
+
+  .navbar a {
+    margin: 1rem 0;
+    font-size: 1.2rem;
+    text-align: center;
+  }
+
+  .dpg-logo {
+    height: 40px;
+  }
+
+  .hero {
+    height: 600px;
+  }
+
+  .hero-content {
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .hero-content h1 {
+    font-size: 2rem;
+  }
+
+  .hero-content h2 {
+    font-size: 1.5rem;
+  }
+
+  .hero-content p {
+    font-size: 1rem;
+  }
+
+  .who-we-are,
+  .who-we-are-secondary {
+    flex-direction: column;
+    height: auto;
+    padding: 2rem 1rem;
+    gap: 1.5rem;
+  }
+
+  .who-we-are-title,
+  .who-we-are-title.secondary {
+    font-size: 36px;
+    min-width: unset;
+    width: 100%;
+  }
+
+  .who-we-are-subtitle,
+  .who-we-are-subtitle.secondary {
+    font-size: 18px;
+    padding: 0 1rem;
+  }
+
+  .landing-page-button {
+    padding: 15px 40px;
+    font-size: 16px;
+    width: 80%;
+    max-width: 300px;
+  }
+
+  .who-we-are-secondary .landing-page-button {
+    margin: 10px 0;
+  }
+
+  .who-we-are-secondary div:last-child {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .team-member-container {
+    height: auto;
+    padding: 32px 16px;
+  }
+
+  .team-member-image {
+    width: 200px;
+    height: 200px;
+  }
+
+  .team-member-name {
+    font-size: 24px;
+  }
+
+  .team-member-description {
+    font-size: 12px;
+  }
+
+  .meet-the-team {
+    padding: 20px;
+  }
+
+  .team-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-content h1 {
+    font-size: 1.75rem;
+  }
+
+  .hero-content h2 {
+    font-size: 1.25rem;
+  }
+
+  .who-we-are-title,
+  .who-we-are-title.secondary {
+    font-size: 28px;
+  }
+
+  .who-we-are-subtitle,
+  .who-we-are-subtitle.secondary {
+    font-size: 16px;
+  }
 }
