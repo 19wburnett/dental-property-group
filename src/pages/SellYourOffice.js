@@ -18,7 +18,6 @@ const validationSchema = Yup.object({
     .matches(/^[0-9]{5}(-[0-9]{4})?$/, 'Invalid ZIP code')
     .required('Required'),
   propertySize: Yup.number().required('Required'),
-  numberOfOperatories: Yup.number().required('Required'),
   
   // Building Information
   yearBuilt: Yup.number()
@@ -28,14 +27,20 @@ const validationSchema = Yup.object({
   hasBeenRenovated: Yup.boolean(),
   renovationYear: Yup.number()
     .nullable()
-    .transform((value) => (isNaN(value) ? null : value))
+    .transform((value, originalValue) => {
+      // If it's an empty string or not a number, return null
+      if (originalValue === '' || isNaN(originalValue)) {
+        return null;
+      }
+      return Number(originalValue);
+    })
     .when('hasBeenRenovated', {
       is: true,
       then: () => Yup.number()
         .required('Required when renovated is checked')
         .min(1900, 'Year must be after 1900')
         .max(new Date().getFullYear(), 'Year cannot be in the future'),
-      otherwise: () => Yup.number().nullable()
+      otherwise: () => Yup.mixed().nullable() // Allow any value when hasBeenRenovated is false
     }),
   monthlyUtilities: Yup.number().required('Required'),
   additionalFees: Yup.string(),
@@ -50,10 +55,10 @@ const validationSchema = Yup.object({
   email: Yup.string().email('Invalid email').required('Required'),
   phone: Yup.string().required('Required'),
 
-  // File Uploads
-  pnlDocuments: Yup.mixed(),
-  leaseAgreement: Yup.mixed(),
-  otherDocuments: Yup.mixed()
+  // Make file uploads optional
+  pnlDocuments: Yup.mixed().nullable(),
+  leaseAgreement: Yup.mixed().nullable(),
+  otherDocuments: Yup.mixed().nullable()
 });
 
 const SellYourOffice = () => {
@@ -67,7 +72,6 @@ const SellYourOffice = () => {
     state: '',
     zipCode: '',
     propertySize: '',
-    numberOfOperatories: '',
     
     // Building Information
     yearBuilt: '',
@@ -149,10 +153,11 @@ const SellYourOffice = () => {
   ];
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
-    console.log('Form submitted with values:', values); // Debug log
-
     try {
-      // First, create the basic submission without files
+      // Validate all fields before submission
+      await validationSchema.validate(values, { abortEarly: false });
+      
+      // Create the base submission object
       const baseSubmission = {
         name: values.name,
         email: values.email,
@@ -162,7 +167,6 @@ const SellYourOffice = () => {
         state: values.state,
         zip_code: values.zipCode,
         property_size: Number(values.propertySize),
-        number_of_operatories: Number(values.numberOfOperatories),
         year_built: Number(values.yearBuilt),
         has_been_renovated: values.hasBeenRenovated,
         renovation_year: values.hasBeenRenovated ? Number(values.renovationYear) : null,
@@ -174,68 +178,61 @@ const SellYourOffice = () => {
         created_at: new Date().toISOString()
       };
 
-      console.log('Attempting database insert with:', baseSubmission); // Debug log
-
-      // First try to insert the basic data
+      // Insert into Supabase
       const { data: submissionData, error: submissionError } = await supabase
         .from('property_submissions')
         .insert([baseSubmission])
         .select();
 
-      if (submissionError) {
-        console.error('Database submission error:', submissionError);
-        throw submissionError;
-      }
+      if (submissionError) throw submissionError;
 
-      console.log('Basic submission successful:', submissionData); // Debug log
+      // Handle file uploads if present
+      if (submissionData?.[0]?.id) {
+        const submissionId = submissionData[0].id;
+        const fileUploads = {};
 
-      // If we have files, handle them after successful data submission
-      const submissionId = submissionData[0].id;
-      const fileUploads = {};
+        // Handle PNL documents
+        if (values.pnlDocuments) {
+          const pnlFilePath = `${submissionId}/pnl/${values.pnlDocuments.name}`;
+          const { error: pnlError } = await supabase.storage
+            .from('property-documents')
+            .upload(pnlFilePath, values.pnlDocuments);
+          if (!pnlError) fileUploads.pnl_documents_url = pnlFilePath;
+        }
 
-      if (values.pnlDocuments || values.leaseAgreement || values.otherDocuments) {
-        console.log('Starting file uploads...'); // Debug log
-        
-        try {
-          if (values.pnlDocuments) {
-            const pnlFile = values.pnlDocuments;
-            const pnlFilePath = `${submissionId}/pnl-${Date.now()}-${pnlFile.name}`.replace(/[^a-zA-Z0-9.-]/g, '-');
-            
-            const { data: pnlData, error: pnlError } = await supabase.storage
-              .from('property-documents')
-              .upload(pnlFilePath, pnlFile);
+        // Handle lease agreement
+        if (values.leaseAgreement) {
+          const leaseFilePath = `${submissionId}/lease/${values.leaseAgreement.name}`;
+          const { error: leaseError } = await supabase.storage
+            .from('property-documents')
+            .upload(leaseFilePath, values.leaseAgreement);
+          if (!leaseError) fileUploads.lease_agreement_url = leaseFilePath;
+        }
 
-            if (pnlError) throw pnlError;
-            fileUploads.pnl_documents_url = pnlData.path;
-          }
+        // Handle other documents
+        if (values.otherDocuments) {
+          const otherFilePath = `${submissionId}/other/${values.otherDocuments.name}`;
+          const { error: otherError } = await supabase.storage
+            .from('property-documents')
+            .upload(otherFilePath, values.otherDocuments);
+          if (!otherError) fileUploads.other_documents_url = otherFilePath;
+        }
 
-          // Similar blocks for leaseAgreement and otherDocuments
-          // ...existing file upload code...
-
-          // If we have any file uploads, update the submission record
-          if (Object.keys(fileUploads).length > 0) {
-            const { error: updateError } = await supabase
-              .from('property_submissions')
-              .update(fileUploads)
-              .eq('id', submissionId);
-
-            if (updateError) throw updateError;
-          }
-        } catch (fileError) {
-          console.error('File upload error:', fileError);
-          // Don't throw here - we want to keep the form submission even if files fail
-          setSubmitStatus('Form submitted successfully, but there was an error uploading files.');
-          return;
+        // Update submission with file paths if any
+        if (Object.keys(fileUploads).length > 0) {
+          await supabase
+            .from('property_submissions')
+            .update(fileUploads)
+            .eq('id', submissionId);
         }
       }
 
       setSubmitStatus('Success! Your submission has been received.');
-      console.log('Submission complete with files:', fileUploads); // Debug log
       resetForm();
       setStep(1);
     } catch (error) {
-      console.error('Form submission error:', error);
-      setSubmitStatus(`Error submitting form: ${error.message}`);
+      console.error('Submission error:', error);
+      setSubmitStatus(`Error: ${error.message}`);
     } finally {
       setSubmitting(false);
     }
@@ -520,13 +517,9 @@ const SellYourOffice = () => {
         initialValues={initialValues}
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
-        enableReinitialize={true} // Add this line
       >
         {(formikProps) => (
-          <Form onSubmit={(e) => {
-            console.log('Form onSubmit triggered'); // Debug log
-            formikProps.handleSubmit(e);
-          }}>
+          <Form>
             {renderStep(formikProps)}
             <div className="form-navigation">
               {step > 1 && (
@@ -534,6 +527,7 @@ const SellYourOffice = () => {
                   type="button"
                   onClick={() => setStep(step - 1)}
                   className="btn-secondary"
+                  disabled={formikProps.isSubmitting}
                 >
                   Previous
                 </button>
@@ -543,27 +537,28 @@ const SellYourOffice = () => {
                   type="button"
                   onClick={() => setStep(step + 1)}
                   className="btn-primary"
+                  disabled={formikProps.isSubmitting}
                 >
                   Next
                 </button>
               ) : (
                 <button
                   type="submit"
-                  disabled={formikProps.isSubmitting}
                   className="btn-primary"
+                  disabled={formikProps.isSubmitting}
                 >
-                  Submit
+                  {formikProps.isSubmitting ? 'Submitting...' : 'Submit'}
                 </button>
               )}
             </div>
+            {submitStatus && (
+              <div className={`submit-status ${submitStatus.includes('Error') ? 'error' : 'success'}`}>
+                {submitStatus}
+              </div>
+            )}
           </Form>
         )}
       </Formik>
-      {submitStatus && (
-        <div className={`submit-status ${submitStatus.includes('Error') ? 'error' : 'success'}`}>
-          {submitStatus}
-        </div>
-      )}
     </div>
   );
 };
