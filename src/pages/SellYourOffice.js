@@ -452,7 +452,7 @@ const SellYourOffice = () => {
           <div className="form-step">
             <h2>Document Upload</h2>
             <div className="form-group">
-              <label>P&L Documents (Last 3 Years)</label>
+              <label>P&L and Operating Documents (Last 3 Years)</label>
               <FileUploadBox
                 fieldName="pnlDocuments"
                 acceptedTypes=".pdf,.doc,.docx,.xls,.xlsx"
@@ -461,7 +461,7 @@ const SellYourOffice = () => {
               />
             </div>
             <div className="form-group">
-              <label>Lease Agreement (if applicable)</label>
+              <label>All current leases (inclusive of all options and any amendments) </label>
               <FileUploadBox
                 fieldName="leaseAgreement"
                 acceptedTypes=".pdf,.doc,.docx"
