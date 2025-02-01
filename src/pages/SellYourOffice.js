@@ -189,41 +189,50 @@ const SellYourOffice = () => {
       // Handle file uploads if present
       if (submissionData?.[0]?.id) {
         const submissionId = submissionData[0].id;
-        const fileUploads = {};
+        
+        // Array to store all file upload promises
+        const fileUploads = [];
 
-        // Handle PNL documents
-        if (values.pnlDocuments) {
-          const pnlFilePath = `${submissionId}/pnl/${values.pnlDocuments.name}`;
-          const { error: pnlError } = await supabase.storage
-            .from('property-documents')
-            .upload(pnlFilePath, values.pnlDocuments);
-          if (!pnlError) fileUploads.pnl_documents_url = pnlFilePath;
-        }
+        // Handle each file type
+        const fileTypes = [
+          { field: 'pnlDocuments', type: 'pnl', label: 'P&L Documents' },
+          { field: 'leaseAgreement', type: 'lease', label: 'Lease Agreement' },
+          { field: 'otherDocuments', type: 'other', label: 'Other Documents' }
+        ];
 
-        // Handle lease agreement
-        if (values.leaseAgreement) {
-          const leaseFilePath = `${submissionId}/lease/${values.leaseAgreement.name}`;
-          const { error: leaseError } = await supabase.storage
-            .from('property-documents')
-            .upload(leaseFilePath, values.leaseAgreement);
-          if (!leaseError) fileUploads.lease_agreement_url = leaseFilePath;
-        }
+        for (const { field, type, label } of fileTypes) {
+          if (values[field]) {
+            const file = values[field];
+            const filePath = `${submissionId}/${type}/${file.name}`;
+            
+            // Upload file to storage
+            const { error: uploadError } = await supabase.storage
+              .from('property-documents')
+              .upload(filePath, file);
 
-        // Handle other documents
-        if (values.otherDocuments) {
-          const otherFilePath = `${submissionId}/other/${values.otherDocuments.name}`;
-          const { error: otherError } = await supabase.storage
-            .from('property-documents')
-            .upload(otherFilePath, values.otherDocuments);
-          if (!otherError) fileUploads.other_documents_url = otherFilePath;
-        }
+            if (!uploadError) {
+              // Create file record in files table
+              const fileRecord = {
+                submission_id: submissionId,
+                file_name: file.name,
+                file_type: type,
+                file_path: filePath,
+                file_size: file.size,
+                mime_type: file.type,
+                display_name: label,
+                status: 'uploaded',
+                uploaded_at: new Date().toISOString()
+              };
 
-        // Update submission with file paths if any
-        if (Object.keys(fileUploads).length > 0) {
-          await supabase
-            .from('property_submissions')
-            .update(fileUploads)
-            .eq('id', submissionId);
+              const { error: fileRecordError } = await supabase
+                .from('property_files')
+                .insert([fileRecord]);
+
+              if (fileRecordError) {
+                console.error(`Error recording file metadata: ${fileRecordError.message}`);
+              }
+            }
+          }
         }
       }
 
