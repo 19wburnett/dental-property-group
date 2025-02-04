@@ -9,8 +9,10 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1aXNieGJmd3dwbXVhbXljanB2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0OTE2MjIsImV4cCI6MjA1MzA2NzYyMn0.kQGdpgPOGM34rkQaRqxPHnRjDu21T_wayz4ixL_414Y'
 );
 
-// Update webhook endpoint to use local proxy
-const WEBHOOK_ENDPOINT = '/api/webhook';
+// Update webhook endpoint to use Vercel API route
+const WEBHOOK_ENDPOINT = process.env.NODE_ENV === 'production' 
+  ? '/api/webhook'  // Production endpoint
+  : 'http://localhost:3002/api/webhook'; // Development endpoint
 
 const validationSchema = Yup.object({
   // Property Details
