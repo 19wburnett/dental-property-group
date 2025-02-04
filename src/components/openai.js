@@ -5,6 +5,8 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true
 });
 
+// ...existing code...
+
 export const generateAIResponse = async (userInput, documents) => {
   try {
     if (!process.env.REACT_APP_OPENAI_API_KEY) {

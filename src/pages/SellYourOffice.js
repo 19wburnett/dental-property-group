@@ -9,6 +9,9 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1aXNieGJmd3dwbXVhbXljanB2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0OTE2MjIsImV4cCI6MjA1MzA2NzYyMn0.kQGdpgPOGM34rkQaRqxPHnRjDu21T_wayz4ixL_414Y'
 );
 
+// Update webhook endpoint to use local proxy
+const WEBHOOK_ENDPOINT = '/api/webhook';
+
 const validationSchema = Yup.object({
   // Property Details
   streetAddress: Yup.string().required('Required'),
@@ -186,50 +189,75 @@ const SellYourOffice = () => {
 
       if (submissionError) throw submissionError;
 
-      // Handle file uploads if present
+      // If we have a successful submission, send webhook
       if (submissionData?.[0]?.id) {
         const submissionId = submissionData[0].id;
         
-        // Array to store all file upload promises
-        const fileUploads = [];
+        try {
+          const webhookResponse = await fetch(WEBHOOK_ENDPOINT, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              submissionId: submissionId,
+              ...baseSubmission
+            })
+          });
 
-        // Handle each file type
-        const fileTypes = [
-          { field: 'pnlDocuments', type: 'pnl', label: 'P&L Documents' },
-          { field: 'leaseAgreement', type: 'lease', label: 'Lease Agreement' },
-          { field: 'otherDocuments', type: 'other', label: 'Other Documents' }
-        ];
+          if (!webhookResponse.ok) {
+            throw new Error(`Webhook failed: ${webhookResponse.status}`);
+          }
+        } catch (webhookError) {
+          console.error('Webhook error:', webhookError);
+          setSubmitStatus('Form submitted but notification failed to send');
+        }
 
-        for (const { field, type, label } of fileTypes) {
-          if (values[field]) {
-            const file = values[field];
-            const filePath = `${submissionId}/${type}/${file.name}`;
-            
-            // Upload file to storage
-            const { error: uploadError } = await supabase.storage
-              .from('property-documents')
-              .upload(filePath, file);
+        // Handle file uploads if present
+        if (submissionData?.[0]?.id) {
+          const submissionId = submissionData[0].id;
+          
+          // Array to store all file upload promises
+          const fileUploads = [];
 
-            if (!uploadError) {
-              // Create file record in files table
-              const fileRecord = {
-                submission_id: submissionId,
-                file_name: file.name,
-                file_type: type,
-                file_path: filePath,
-                file_size: file.size,
-                mime_type: file.type,
-                display_name: label,
-                status: 'uploaded',
-                uploaded_at: new Date().toISOString()
-              };
+          // Handle each file type
+          const fileTypes = [
+            { field: 'pnlDocuments', type: 'pnl', label: 'P&L Documents' },
+            { field: 'leaseAgreement', type: 'lease', label: 'Lease Agreement' },
+            { field: 'otherDocuments', type: 'other', label: 'Other Documents' }
+          ];
 
-              const { error: fileRecordError } = await supabase
-                .from('property_files')
-                .insert([fileRecord]);
+          for (const { field, type, label } of fileTypes) {
+            if (values[field]) {
+              const file = values[field];
+              const filePath = `${submissionId}/${type}/${file.name}`;
+              
+              // Upload file to storage
+              const { error: uploadError } = await supabase.storage
+                .from('property-documents')
+                .upload(filePath, file);
 
-              if (fileRecordError) {
-                console.error(`Error recording file metadata: ${fileRecordError.message}`);
+              if (!uploadError) {
+                // Create file record in files table
+                const fileRecord = {
+                  submission_id: submissionId,
+                  file_name: file.name,
+                  file_type: type,
+                  file_path: filePath,
+                  file_size: file.size,
+                  mime_type: file.type,
+                  display_name: label,
+                  status: 'uploaded',
+                  uploaded_at: new Date().toISOString()
+                };
+
+                const { error: fileRecordError } = await supabase
+                  .from('property_files')
+                  .insert([fileRecord]);
+
+                if (fileRecordError) {
+                  console.error(`Error recording file metadata: ${fileRecordError.message}`);
+                }
               }
             }
           }
