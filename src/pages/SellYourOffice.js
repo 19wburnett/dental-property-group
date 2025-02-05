@@ -9,10 +9,10 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1aXNieGJmd3dwbXVhbXljanB2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc0OTE2MjIsImV4cCI6MjA1MzA2NzYyMn0.kQGdpgPOGM34rkQaRqxPHnRjDu21T_wayz4ixL_414Y'
 );
 
-// Update webhook endpoint to use Vercel API route
+// Update webhook endpoint to use Express server
 const WEBHOOK_ENDPOINT = process.env.NODE_ENV === 'production' 
-  ? '/api/webhook'  // Production endpoint
-  : 'http://localhost:3002/api/webhook'; // Development endpoint
+  ? `${window.location.origin}/api/webhook`  // Production endpoint
+  : 'http://localhost:3002/api/webhook'; // Development endpoint using Express server
 
 const validationSchema = Yup.object({
   // Property Details
@@ -208,11 +208,12 @@ const SellYourOffice = () => {
           });
 
           if (!webhookResponse.ok) {
-            throw new Error(`Webhook failed: ${webhookResponse.status}`);
+            console.warn(`Webhook returned status: ${webhookResponse.status}`);
+            // Continue with the form submission even if webhook fails
           }
         } catch (webhookError) {
-          console.error('Webhook error:', webhookError);
-          setSubmitStatus('Form submitted but notification failed to send');
+          console.warn('Webhook notification failed:', webhookError);
+          // Continue with the form submission even if webhook fails
         }
 
         // Handle file uploads if present
