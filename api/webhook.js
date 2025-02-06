@@ -22,18 +22,38 @@ export default async function handler(req, res) {
       ? process.env.REACT_APP_WEBHOOK_URL_PROD
       : process.env.REACT_APP_WEBHOOK_URL_TEST;
 
+    if (!webhookUrl) {
+      throw new Error('Webhook URL not configured');
+    }
+
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify({
+        ...req.body,
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV
+      })
     });
 
+    if (!response.ok) {
+      throw new Error(`Webhook failed with status ${response.status}`);
+    }
+
     const data = await response.text();
-    res.status(response.status).send(data);
+    res.status(200).json({ 
+      success: true,
+      message: 'Webhook processed successfully',
+      data 
+    });
   } catch (error) {
     console.error('Webhook error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 }

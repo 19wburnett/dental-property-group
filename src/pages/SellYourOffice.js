@@ -11,8 +11,8 @@ const supabase = createClient(
 
 // Update webhook endpoint to use Express server
 const WEBHOOK_ENDPOINT = process.env.NODE_ENV === 'production' 
-  ? `${window.location.origin}/api/webhook`  // Production endpoint
-  : 'http://localhost:3002/api/webhook'; // Development endpoint using Express server
+  ? `${window.location.origin}/api/webhook`  // Points to /api/webhook.js
+  : 'http://localhost:3000/api/webhook';     // Updated port to match Next.js default
 
 const validationSchema = Yup.object({
   // Property Details
