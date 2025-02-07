@@ -14,26 +14,28 @@ const WEBHOOK_ENDPOINT = process.env.NODE_ENV === 'production'
   ? process.env.REACT_APP_WEBHOOK_URL_PROD  // Use N8N webhook URL directly
   : process.env.REACT_APP_WEBHOOK_URL_TEST;  // Use test webhook URL directly
 
+// Update validation schema
 const validationSchema = Yup.object({
-  // Property Details
+  // Property Details (Required)
   streetAddress: Yup.string().required('Required'),
   city: Yup.string().required('Required'),
   state: Yup.string().required('Required'),
   zipCode: Yup.string()
     .matches(/^[0-9]{5}(-[0-9]{4})?$/, 'Invalid ZIP code')
     .required('Required'),
-  propertySize: Yup.number().required('Required'),
   
-  // Building Information
+  // Property Details (Optional)
+  propertySize: Yup.number().nullable(),
+  
+  // Building Information (All Optional)
   yearBuilt: Yup.number()
     .min(1900, 'Year must be after 1900')
     .max(new Date().getFullYear(), 'Year cannot be in the future')
-    .required('Required'),
+    .nullable(),
   hasBeenRenovated: Yup.boolean(),
   renovationYear: Yup.number()
     .nullable()
     .transform((value, originalValue) => {
-      // If it's an empty string or not a number, return null
       if (originalValue === '' || isNaN(originalValue)) {
         return null;
       }
@@ -42,25 +44,44 @@ const validationSchema = Yup.object({
     .when('hasBeenRenovated', {
       is: true,
       then: () => Yup.number()
-        .required('Required when renovated is checked')
         .min(1900, 'Year must be after 1900')
         .max(new Date().getFullYear(), 'Year cannot be in the future'),
-      otherwise: () => Yup.mixed().nullable() // Allow any value when hasBeenRenovated is false
+      otherwise: () => Yup.mixed().nullable()
     }),
-  monthlyUtilities: Yup.number().required('Required'),
-  additionalFees: Yup.string(),
+  additionalFees: Yup.array().of(
+    Yup.object().shape({
+      feeType: Yup.string(),
+      amount: Yup.number().min(0, 'Amount must be positive')
+    })
+  ).default([]),
+  buildingType: Yup.string().nullable(),
 
-  // Financial Details
-  askingPrice: Yup.number().required('Required'),
-  annualRevenue: Yup.number().required('Required'),
-  propertyType: Yup.string().required('Required'),
+  // Financial Details (All Optional)
+  practiceName: Yup.string().nullable(),
+  askingPrice: Yup.number().nullable(),
+  numberOfTenants: Yup.number()
+    .min(0, 'Must be 0 or greater')
+    .nullable(),
+  mortgageOwed: Yup.number()
+    .min(0, 'Must be 0 or greater')
+    .nullable(),
+  isAssumable: Yup.boolean(),
+  canBeTransferred: Yup.boolean()
+    .when(['isAssumable'], {
+      is: true,
+      then: () => Yup.boolean(),
+      otherwise: () => Yup.boolean().nullable()
+    }),
+  wouldConsiderFinancing: Yup.boolean(),
 
-  // Personal Info
+  // Personal Info (Required)
   name: Yup.string().required('Required'),
   email: Yup.string().email('Invalid email').required('Required'),
-  phone: Yup.string().required('Required'),
+  
+  // Personal Info (Optional)
+  phone: Yup.string().nullable(),
 
-  // Make file uploads optional
+  // File uploads (Optional)
   pnlDocuments: Yup.mixed().nullable(),
   leaseAgreement: Yup.mixed().nullable(),
   otherDocuments: Yup.mixed().nullable()
@@ -82,13 +103,45 @@ const SellYourOffice = () => {
     yearBuilt: '',
     hasBeenRenovated: false,
     renovationYear: '',
-    monthlyUtilities: '',
-    additionalFees: '',
+    additionalFees: [], // Change to array for multiple fees
+    buildingType: '',
+
+    // Repairs & Maintenance
+    repairs: {
+      roof: { done: false, year: '', cost: '' },
+      siding: { done: false, year: '', cost: '' },
+      windowsAndDoors: { done: false, year: '', cost: '' },
+      hvac: { done: false, year: '', cost: '' },
+      signage: { done: false, year: '', cost: '' },
+      walkways: { done: false, year: '', cost: '' },
+      parkingLot: { done: false, year: '', cost: '' },
+      landscaping: { done: false, year: '', cost: '' },
+      foundation: { done: false, year: '', cost: '' },
+      otherCapex: { done: false, year: '', cost: '' }
+    },
+
+    // Future Repairs
+    futureRepairs: {
+      roof: { needed: false, yearsUntilNeeded: '' },
+      siding: { needed: false, yearsUntilNeeded: '' },
+      windowsAndDoors: { needed: false, yearsUntilNeeded: '' },
+      hvac: { needed: false, yearsUntilNeeded: '' },
+      signage: { needed: false, yearsUntilNeeded: '' },
+      walkways: { needed: false, yearsUntilNeeded: '' },
+      parkingLot: { needed: false, yearsUntilNeeded: '' },
+      landscaping: { needed: false, yearsUntilNeeded: '' },
+      foundation: { needed: false, yearsUntilNeeded: '' },
+      otherCapex: { needed: false, yearsUntilNeeded: '' }
+    },
 
     // Financial Details
+    practiceName: '',
     askingPrice: '',
-    annualRevenue: '',
-    propertyType: 'owned',
+    numberOfTenants: '',
+    mortgageOwed: '',
+    isAssumable: false,
+    canBeTransferred: false,
+    wouldConsiderFinancing: false,
 
     // Personal Info
     name: '',
@@ -159,28 +212,62 @@ const SellYourOffice = () => {
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
-      // Validate all fields before submission
       await validationSchema.validate(values, { abortEarly: false });
       
-      // Create the base submission object
       const baseSubmission = {
+        // Personal Info
         name: values.name,
         email: values.email,
         phone: values.phone,
+
+        // Property Details
         street_address: values.streetAddress,
         city: values.city,
         state: values.state,
         zip_code: values.zipCode,
-        property_size: Number(values.propertySize),
-        year_built: Number(values.yearBuilt),
+        property_size: values.propertySize ? Number(values.propertySize) : null,
+
+        // Building Information
+        property_type: values.buildingType || 'unknown', // Changed from building_type and added default
+        year_built: values.yearBuilt ? Number(values.yearBuilt) : null,
         has_been_renovated: values.hasBeenRenovated,
-        renovation_year: values.hasBeenRenovated ? Number(values.renovationYear) : null,
-        monthly_utilities: Number(values.monthlyUtilities),
+        renovation_year: values.hasBeenRenovated && values.renovationYear ? Number(values.renovationYear) : null,
         additional_fees: values.additionalFees,
-        asking_price: Number(values.askingPrice),
-        annual_revenue: Number(values.annualRevenue),
-        property_type: values.propertyType,
-        created_at: new Date().toISOString()
+
+        // Past Repairs & Maintenance
+        past_repairs: Object.entries(values.repairs).reduce((acc, [key, value]) => {
+          if (value.done) {
+            acc[key] = {
+              year_completed: value.year ? Number(value.year) : null,
+              cost: value.cost ? Number(value.cost) : null
+            };
+          }
+          return acc;
+        }, {}),
+
+        // Future Repairs
+        future_repairs: Object.entries(values.futureRepairs).reduce((acc, [key, value]) => {
+          if (value.needed) {
+            acc[key] = {
+              years_until_needed: value.yearsUntilNeeded ? Number(value.yearsUntilNeeded) : null
+            };
+          }
+          return acc;
+        }, {}),
+
+        // Financial Details
+        practice_name: values.practiceName,
+        asking_price: values.askingPrice ? Number(values.askingPrice) : null,
+        number_of_tenants: values.numberOfTenants ? Number(values.numberOfTenants) : null,
+        mortgage_owed: values.mortgageOwed ? Number(values.mortgageOwed) : null,
+        is_assumable: values.isAssumable,
+        can_be_transferred: values.isAssumable ? values.canBeTransferred : null,
+        would_consider_financing: values.wouldConsiderFinancing,
+
+        // Metadata
+        created_at: new Date().toISOString(),
+        status: 'new',
+        submission_source: 'web_form'
       };
 
       // Insert into Supabase
@@ -194,7 +281,6 @@ const SellYourOffice = () => {
       // If we have a successful submission, send webhook
       if (submissionData?.[0]?.id) {
         const submissionId = submissionData[0].id;
-        
         try {
           const webhookResponse = await fetch(WEBHOOK_ENDPOINT, {
             method: 'POST',
@@ -219,10 +305,8 @@ const SellYourOffice = () => {
         // Handle file uploads if present
         if (submissionData?.[0]?.id) {
           const submissionId = submissionData[0].id;
-          
           // Array to store all file upload promises
           const fileUploads = [];
-
           // Handle each file type
           const fileTypes = [
             { field: 'pnlDocuments', type: 'pnl', label: 'P&L Documents' },
@@ -265,44 +349,39 @@ const SellYourOffice = () => {
             }
           }
         }
-      }
 
-      setSubmitStatus('Success! Your submission has been received.');
-      resetForm();
-      setStep(1);
+        setSubmitStatus('Success! Your submission has been received.');
+      }
     } catch (error) {
       console.error('Submission error:', error);
       setSubmitStatus(`Error: ${error.message}`);
     } finally {
       setSubmitting(false);
+      resetForm();
+      setStep(1);
     }
   };
 
   const steps = [
     { number: 1, label: 'Property Details' },
     { number: 2, label: 'Building Info' },
-    { number: 3, label: 'Financial' },
-    { number: 4, label: 'Documents' },
-    { number: 5, label: 'Personal Info' }
+    { number: 3, label: 'Past Repairs' },
+    { number: 4, label: 'Future Repairs' },
+    { number: 5, label: 'Financial' },
+    { number: 6, label: 'Documents' },
+    { number: 7, label: 'Personal Info' }
   ];
 
   const ProgressBar = () => {
     const progress = ((step - 1) / (steps.length - 1)) * 100;
-    
     return (
       <div className="progress-bar-container">
         <div className="progress-steps">
-          <div 
-            className="progress-bar-fill" 
-            style={{ width: `${progress}%` }}
-          />
+          <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
           {steps.map((s) => (
             <div
               key={s.number}
-              className={`step ${
-                step === s.number ? 'active' : 
-                step > s.number ? 'completed' : ''
-              }`}
+              className={`step ${step === s.number ? 'active' : step > s.number ? 'completed' : ''}`}
             >
               {step > s.number ? '✓' : s.number}
               <span className="step-label">{s.label}</span>
@@ -317,12 +396,7 @@ const SellYourOffice = () => {
     const [isDragging, setIsDragging] = useState(false);
     const fileName = formik.values[fieldName]?.name;
 
-    const handleDrag = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    const handleDragEnter = (e) => {
+    const handleDragOver = (e) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(true);
@@ -338,35 +412,33 @@ const SellYourOffice = () => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-
       const files = e.dataTransfer.files;
       if (files?.length) {
         onFileSelect(files[0]);
       }
     };
 
+    const handleFileSelect = (event) => {
+      const file = event.currentTarget.files[0];
+      onFileSelect(file);
+    };
+
     return (
       <div
         className={`file-upload-box ${isDragging ? 'dragging' : ''}`}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDrag}
+        onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
         <input
           type="file"
-          onChange={(event) => {
-            const file = event.currentTarget.files[0];
-            if (file) onFileSelect(file);
-          }}
           accept={acceptedTypes}
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
         />
         <div className="file-upload-icon">📁</div>
         <div className="file-upload-text">
           Drag and drop a file here, or click to select
-        </div>
-        <div className="file-upload-text">
-          Accepted files: {acceptedTypes}
         </div>
         {fileName && (
           <div className="file-name">Selected: {fileName}</div>
@@ -427,17 +499,30 @@ const SellYourOffice = () => {
           <div className="form-step">
             <h2>Building Information</h2>
             <div className="form-group">
+              <label>Property Type</label>
+              <Field name="buildingType" as="select" className="form-control">
+                <option value="">Select Property Type</option>
+                <option value="condo">Condominium</option>
+                <option value="whole">Whole Building</option>
+              </Field>
+              {props.errors.buildingType && props.touched.buildingType && 
+                <div className="error">{props.errors.buildingType}</div>}
+            </div>
+            
+            <div className="form-group">
               <label>Year Built</label>
               <Field name="yearBuilt" type="number" className="form-control" />
               {props.errors.yearBuilt && props.touched.yearBuilt && 
                 <div className="error">{props.errors.yearBuilt}</div>}
             </div>
+
             <div className="form-group">
               <label>
                 <Field type="checkbox" name="hasBeenRenovated" />
                 Has the building been renovated?
               </label>
             </div>
+
             {props.values.hasBeenRenovated && (
               <div className="form-group">
                 <label>Year of Last Renovation</label>
@@ -446,25 +531,171 @@ const SellYourOffice = () => {
                   <div className="error">{props.errors.renovationYear}</div>}
               </div>
             )}
+
             <div className="form-group">
-              <label>Monthly Utilities ($)</label>
-              <Field name="monthlyUtilities" type="number" className="form-control" />
-              {props.errors.monthlyUtilities && props.touched.monthlyUtilities && 
-                <div className="error">{props.errors.monthlyUtilities}</div>}
-            </div>
-            <div className="form-group">
-              <label>HOA/Additional Fees (Please describe)</label>
-              <Field name="additionalFees" as="textarea" className="form-control" />
-              {props.errors.additionalFees && props.touched.additionalFees && 
-                <div className="error">{props.errors.additionalFees}</div>}
+              <label>Monthly Fees (COA, Service Contract, Property Management, etc.)</label>
+              <div className="fees-container">
+                {props.values.additionalFees.map((fee, index) => (
+                  <div key={index} className="fee-row">
+                    <Field
+                      name={`additionalFees.${index}.feeType`}
+                      placeholder="Fee Type (e.g., COA, Service Contract)"
+                      className="form-control fee-type"
+                    />
+                    <Field
+                      name={`additionalFees.${index}.amount`}
+                      type="number"
+                      placeholder="Amount"
+                      className="form-control fee-amount"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newFees = [...props.values.additionalFees];
+                        newFees.splice(index, 1);
+                        props.setFieldValue('additionalFees', newFees);
+                      }}
+                      className="btn-remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.setFieldValue('additionalFees', [
+                      ...props.values.additionalFees,
+                      { feeType: '', amount: '' }
+                    ]);
+                  }}
+                  className="btn-add"
+                >
+                  + Add Fee
+                </button>
+              </div>
             </div>
           </div>
         );
 
-      case 3: // Financial Details
+      case 3: // Repairs & Maintenance
+        const repairItems = [
+          { key: 'roof', label: 'Roof' },
+          { key: 'siding', label: 'Siding' },
+          { key: 'windowsAndDoors', label: 'Windows and Doors' },
+          { key: 'hvac', label: 'HVAC' },
+          { key: 'signage', label: 'Signage' },
+          { key: 'walkways', label: 'Walkways' },
+          { key: 'parkingLot', label: 'Parking Lot' },
+          { key: 'landscaping', label: 'Landscaping' },
+          { key: 'foundation', label: 'Foundation' },
+          { key: 'otherCapex', label: 'Other Capex' }
+        ];
+
+        return (
+          <div className="form-step">
+            <h2>Repairs & Maintenance History</h2>
+            <p>What repairs and maintenance has been done in the past?</p>
+            <div className="form-group repairs-grid">
+              {repairItems.map(({ key, label }) => {
+                // Ensure the repair object exists for this key
+                if (!props.values.repairs[key]) {
+                  props.setFieldValue(`repairs.${key}`, { done: false, year: '', cost: '' });
+                }
+                
+                return (
+                  <div key={key} className="repair-item">
+                    <label>
+                      <Field
+                        type="checkbox"
+                        name={`repairs.${key}.done`}
+                      />
+                      {label}
+                    </label>
+                    {props.values.repairs[key]?.done && (
+                      <div className="repair-details">
+                        <Field
+                          name={`repairs.${key}.year`}
+                          type="number"
+                          placeholder="Year"
+                          className="form-control"
+                        />
+                        <Field
+                          name={`repairs.${key}.cost`}
+                          type="number"
+                          placeholder="Cost ($)"
+                          className="form-control"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+
+      case 4: // Future Repairs
+        const futureRepairItems = [
+          { key: 'roof', label: 'Roof' },
+          { key: 'siding', label: 'Siding' },
+          { key: 'windowsAndDoors', label: 'Windows and Doors' },
+          { key: 'hvac', label: 'HVAC' },
+          { key: 'signage', label: 'Signage' },
+          { key: 'walkways', label: 'Walkways' },
+          { key: 'parkingLot', label: 'Parking Lot' },
+          { key: 'landscaping', label: 'Landscaping' },
+          { key: 'foundation', label: 'Foundation' },
+          { key: 'otherCapex', label: 'Other Capex' }
+        ];
+
+        return (
+          <div className="form-step">
+            <h2>Future Repairs</h2>
+            <p>What repairs and maintenance are planned for the next 5 years?</p>
+            <div className="form-group repairs-grid">
+              {futureRepairItems.map(({ key, label }) => {
+                // Ensure the future repair object exists for this key
+                if (!props.values.futureRepairs[key]) {
+                  props.setFieldValue(`futureRepairs.${key}`, { needed: false, yearsUntilNeeded: '' });
+                }
+                
+                return (
+                  <div key={key} className="repair-item">
+                    <label>
+                      <Field
+                        type="checkbox"
+                        name={`futureRepairs.${key}.needed`}
+                      />
+                      {label}
+                    </label>
+                    {props.values.futureRepairs[key]?.needed && (
+                      <div className="repair-details">
+                        <Field
+                          name={`futureRepairs.${key}.yearsUntilNeeded`}
+                          type="number"
+                          placeholder="Years until needed"
+                          className="form-control"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+
+      case 5: // Financial Details
         return (
           <div className="form-step">
             <h2>Financial Details</h2>
+            <div className="form-group">
+              <label>Practice Name</label>
+              <Field name="practiceName" className="form-control" />
+              {props.errors.practiceName && props.touched.practiceName && 
+                <div className="error">{props.errors.practiceName}</div>}
+            </div>
             <div className="form-group">
               <label>Asking Price ($)</label>
               <Field name="askingPrice" type="number" className="form-control" />
@@ -472,22 +703,45 @@ const SellYourOffice = () => {
                 <div className="error">{props.errors.askingPrice}</div>}
             </div>
             <div className="form-group">
-              <label>Annual Revenue ($)</label>
-              <Field name="annualRevenue" type="number" className="form-control" />
-              {props.errors.annualRevenue && props.touched.annualRevenue && 
-                <div className="error">{props.errors.annualRevenue}</div>}
+              <label>
+                <Field type="checkbox" name="wouldConsiderFinancing" />
+                Would the seller need all the money upfront, or would consider seller financing? (Taking payments over time could help defer or even eliminate capital gains and other taxes, providing continued cash flow and a higher overall net profit.)
+              </label>
             </div>
             <div className="form-group">
-              <label>Property Type</label>
-              <Field name="propertyType" as="select" className="form-control">
-                <option value="owned">Owned</option>
-                <option value="leased">Leased</option>
-              </Field>
+              <label>Number of Tenants</label>
+              <Field name="numberOfTenants" type="number" className="form-control" />
+              {props.errors.numberOfTenants && props.touched.numberOfTenants && 
+                <div className="error">{props.errors.numberOfTenants}</div>}
             </div>
+            <div className="form-group">
+              <label>Amount Owed on Mortgage ($)</label>
+              <Field name="mortgageOwed" type="number" className="form-control" />
+              {props.errors.mortgageOwed && props.touched.mortgageOwed && 
+                <div className="error">{props.errors.mortgageOwed}</div>}
+            </div>
+            <div className="form-group">
+              <label>
+                <Field type="checkbox" name="isAssumable" />
+                Is the mortgage assumable?
+              </label>
+              {props.errors.isAssumable && props.touched.isAssumable && 
+                <div className="error">{props.errors.isAssumable}</div>}
+            </div>
+            {props.values.isAssumable && (
+              <div className="form-group">
+                <label>
+                  <Field type="checkbox" name="canBeTransferred" />
+                  Could it be transferred to us as part of the deal?
+                </label>
+                {props.errors.canBeTransferred && props.touched.canBeTransferred && 
+                  <div className="error">{props.errors.canBeTransferred}</div>}
+              </div>
+            )}
           </div>
         );
 
-      case 4: // Document Upload
+      case 6: // Document Upload
         return (
           <div className="form-step">
             <h2>Document Upload</h2>
@@ -501,7 +755,7 @@ const SellYourOffice = () => {
               />
             </div>
             <div className="form-group">
-              <label>All current leases (inclusive of all options and any amendments) </label>
+              <label>All current leases (inclusive of all options and any amendments)</label>
               <FileUploadBox
                 fieldName="leaseAgreement"
                 acceptedTypes=".pdf,.doc,.docx"
@@ -521,7 +775,7 @@ const SellYourOffice = () => {
           </div>
         );
 
-      case 5: // Personal Information
+      case 7: // Personal Information
         return (
           <div className="form-step">
             <h2>Personal Information</h2>
@@ -548,7 +802,6 @@ const SellYourOffice = () => {
     }
   };
 
-  // Update the form navigation to handle 5 steps
   return (
     <div className="sell-office-container">
       <h1>Sell Your Dental Office</h1>
@@ -565,18 +818,18 @@ const SellYourOffice = () => {
               {step > 1 && (
                 <button
                   type="button"
-                  onClick={() => setStep(step - 1)}
                   className="btn-secondary"
+                  onClick={() => setStep(step - 1)}
                   disabled={formikProps.isSubmitting}
                 >
                   Previous
                 </button>
               )}
-              {step < 5 ? (
+              {step < 7 ? (
                 <button
                   type="button"
-                  onClick={() => setStep(step + 1)}
                   className="btn-primary"
+                  onClick={() => setStep(step + 1)}
                   disabled={formikProps.isSubmitting}
                 >
                   Next
@@ -590,17 +843,71 @@ const SellYourOffice = () => {
                   {formikProps.isSubmitting ? 'Submitting...' : 'Submit'}
                 </button>
               )}
+              {submitStatus && (
+                <div className={`submit-status ${submitStatus.includes('Error') ? 'error' : 'success'}`}>
+                  {submitStatus}
+                </div>
+              )}
             </div>
-            {submitStatus && (
-              <div className={`submit-status ${submitStatus.includes('Error') ? 'error' : 'success'}`}>
-                {submitStatus}
-              </div>
-            )}
           </Form>
         )}
       </Formik>
     </div>
   );
 };
+
+// Add some CSS for the repairs grid layout
+const styles = `
+.repairs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 1rem 0;
+}
+
+.repair-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.repair-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.repair-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  padding-left: 1.5rem;
+  max-width: 400px;
+}
+
+.repair-details .form-control {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .repair-details {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .repairs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+`;
+
+// Add the styles to the document
+const styleSheet = document.createElement("style");
+styleSheet.innerText = styles;
+document.head.appendChild(styleSheet);
 
 export default SellYourOffice;

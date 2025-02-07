@@ -8,6 +8,7 @@ body {
   font-family: 'Inter', sans-serif;
   padding: 0;
   margin: 0;
+  transition: all 0.3s ease;
 }
 
 .navbar {
@@ -521,6 +522,7 @@ body {
 
 .form-step {
   margin-bottom: 2rem;
+  margin-top: 1rem;
 }
 
 .form-group {
@@ -646,6 +648,7 @@ body {
   justify-content: space-between;
   position: relative;
   margin-bottom: 30px;
+  transition: all 0.3s ease;
 }
 
 .progress-steps::before {
@@ -658,6 +661,7 @@ body {
   height: 4px;
   width: 100%;
   z-index: 0;
+  transition: all 0.3s ease;
 }
 
 .progress-bar-fill {
@@ -669,6 +673,7 @@ body {
   height: 4px;
   transition: width 0.3s ease;
   z-index: 1;
+  transition: all 0.3s ease;  
 }
 
 .step {
@@ -971,5 +976,89 @@ body {
   
   .partner-content h1 {
     font-size: 2rem;
+  }
+}
+
+/* Fee Management Styles */
+.fees-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.fee-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.fee-type {
+  flex: 2;
+}
+
+.fee-amount {
+  flex: 1;
+}
+
+.btn-remove {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.btn-remove:hover {
+  background-color: #cc0000;
+  transform: scale(1.1);
+}
+
+.btn-add {
+  margin-top: 12px;
+  padding: 10px 20px;
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-add:hover {
+  background-color: #249d92;
+  transform: scale(1.05);
+}
+
+.btn-add:active {
+  transform: scale(0.95);
+}
+
+@media (max-width: 768px) {
+  .fee-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .fee-type,
+  .fee-amount {
+    width: 100%;
+  }
+  
+  .btn-remove {
+    align-self: flex-end;
   }
 }
