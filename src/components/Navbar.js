@@ -16,7 +16,9 @@ const Navbar = () => {
 
   return (
     <nav className="navbar">
-      <img className="dpg-logo" src={DPGLogo} alt="DPG Logo"></img>
+      <Link to="/">
+        <img className="dpg-logo" src={DPGLogo} alt="DPG Logo" />
+      </Link>
       <div className="hamburger" onClick={toggleMenu}>
         <span></span>
         <span></span>
