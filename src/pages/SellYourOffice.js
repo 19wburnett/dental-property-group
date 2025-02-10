@@ -652,7 +652,7 @@ const SellYourOffice = () => {
         return (
           <div className="form-step">
             <h2>Future Repairs</h2>
-            <p>What repairs and maintenance are planned for the next 5 years?</p>
+            <p>What repairs and maintenance should we plan for in the next 5 years?</p>
             <div className="form-group repairs-grid">
               {futureRepairItems.map(({ key, label }) => {
                 // Ensure the future repair object exists for this key
