@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Formik, Form, Field } from 'formik';
 import * as Yup from 'yup';
 import { createClient } from '@supabase/supabase-js';
@@ -72,7 +72,6 @@ const validationSchema = Yup.object({
       then: () => Yup.boolean(),
       otherwise: () => Yup.boolean().nullable()
     }),
-  wouldConsiderFinancing: Yup.boolean(),
 
   // Personal Info (Required)
   name: Yup.string().required('Required'),
@@ -82,9 +81,10 @@ const validationSchema = Yup.object({
   phone: Yup.string().nullable(),
 
   // File uploads (Optional)
-  pnlDocuments: Yup.mixed().nullable(),
-  leaseAgreement: Yup.mixed().nullable(),
-  otherDocuments: Yup.mixed().nullable()
+  pnlDocuments: Yup.array().nullable().default([]),
+  leaseAgreement: Yup.array().nullable().default([]),
+  otherDocuments: Yup.array().nullable().default([]),
+
 });
 
 const SellYourOffice = () => {
@@ -141,7 +141,6 @@ const SellYourOffice = () => {
     mortgageOwed: '',
     isAssumable: false,
     canBeTransferred: false,
-    wouldConsiderFinancing: false,
 
     // Personal Info
     name: '',
@@ -149,9 +148,9 @@ const SellYourOffice = () => {
     phone: '',
 
     // File Uploads
-    pnlDocuments: null,
-    leaseAgreement: null,
-    otherDocuments: null
+    pnlDocuments: [],
+    leaseAgreement: [],
+    otherDocuments: []
   };
 
   // US States array for the dropdown
@@ -212,8 +211,38 @@ const SellYourOffice = () => {
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
-      await validationSchema.validate(values, { abortEarly: false });
-      
+      // Validate files before submission
+      const validateFiles = (files) => {
+        if (!files || !Array.isArray(files)) return true;
+        return files.every(file => {
+          if (!file) return true;
+          const isValidSize = file.size <= 10000000; // 10MB
+          const isValidType = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          ].includes(file.type);
+          return isValidSize && isValidType;
+        });
+      };
+
+      // Validate all file arrays
+      const fileFields = ['pnlDocuments', 'leaseAgreement', 'otherDocuments'];
+      const fileValidationErrors = fileFields.reduce((errors, field) => {
+        if (!validateFiles(values[field])) {
+          errors[field] = 'Invalid files detected. Please check file types and sizes.';
+        }
+        return errors;
+      }, {});
+
+      // If there are file validation errors, throw them
+      if (Object.keys(fileValidationErrors).length > 0) {
+        throw new Error(JSON.stringify(fileValidationErrors));
+      }
+
+      // Prepare base submission data
       const baseSubmission = {
         // Personal Info
         name: values.name,
@@ -262,7 +291,6 @@ const SellYourOffice = () => {
         mortgage_owed: values.mortgageOwed ? Number(values.mortgageOwed) : null,
         is_assumable: values.isAssumable,
         can_be_transferred: values.isAssumable ? values.canBeTransferred : null,
-        would_consider_financing: values.wouldConsiderFinancing,
 
         // Metadata
         created_at: new Date().toISOString(),
@@ -278,54 +306,35 @@ const SellYourOffice = () => {
 
       if (submissionError) throw submissionError;
 
-      // If we have a successful submission, send webhook
+      // Handle file uploads if we have a successful submission
       if (submissionData?.[0]?.id) {
         const submissionId = submissionData[0].id;
-        try {
-          const webhookResponse = await fetch(WEBHOOK_ENDPOINT, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              submissionId: submissionId,
-              ...baseSubmission
-            })
-          });
+        const fileTypes = [
+          { field: 'pnlDocuments', type: 'pnl', label: 'P&L Documents' },
+          { field: 'leaseAgreement', type: 'lease', label: 'Lease Agreement' },
+          { field: 'otherDocuments', type: 'other', label: 'Other Documents' }
+        ];
 
-          if (!webhookResponse.ok) {
-            console.warn(`Webhook returned status: ${webhookResponse.status}`);
-            // Continue with the form submission even if webhook fails
-          }
-        } catch (webhookError) {
-          console.warn('Webhook notification failed:', webhookError);
-          // Continue with the form submission even if webhook fails
-        }
+        // Upload files sequentially to avoid overwhelming the server
+        for (const { field, type, label } of fileTypes) {
+          const files = values[field];
+          if (files && Array.isArray(files) && files.length > 0) {
+            for (const file of files) {
+              try {
+                const timestamp = new Date().getTime();
+                const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                const fileName = `${type}_${timestamp}_${safeFileName}`;
+                const filePath = `${submissionId}/${type}/${fileName}`;
 
-        // Handle file uploads if present
-        if (submissionData?.[0]?.id) {
-          const submissionId = submissionData[0].id;
-          // Array to store all file upload promises
-          const fileUploads = [];
-          // Handle each file type
-          const fileTypes = [
-            { field: 'pnlDocuments', type: 'pnl', label: 'P&L Documents' },
-            { field: 'leaseAgreement', type: 'lease', label: 'Lease Agreement' },
-            { field: 'otherDocuments', type: 'other', label: 'Other Documents' }
-          ];
+                const { error: uploadError } = await supabase.storage
+                  .from('property-documents')
+                  .upload(filePath, file);
 
-          for (const { field, type, label } of fileTypes) {
-            if (values[field]) {
-              const file = values[field];
-              const filePath = `${submissionId}/${type}/${file.name}`;
-              
-              // Upload file to storage
-              const { error: uploadError } = await supabase.storage
-                .from('property-documents')
-                .upload(filePath, file);
+                if (uploadError) {
+                  console.error(`Error uploading file ${file.name}:`, uploadError);
+                  continue;
+                }
 
-              if (!uploadError) {
-                // Create file record in files table
                 const fileRecord = {
                   submission_id: submissionId,
                   file_name: file.name,
@@ -343,22 +352,40 @@ const SellYourOffice = () => {
                   .insert([fileRecord]);
 
                 if (fileRecordError) {
-                  console.error(`Error recording file metadata: ${fileRecordError.message}`);
+                  console.error(`Error recording file metadata for ${file.name}:`, fileRecordError);
                 }
+              } catch (fileError) {
+                console.error(`Error processing file ${file.name}:`, fileError);
               }
             }
           }
         }
-
-        setSubmitStatus('Success! Your submission has been received.');
       }
+
+      // Send webhook notification
+      if (submissionData?.[0]?.id) {
+        try {
+          await fetch(WEBHOOK_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              submissionId: submissionData[0].id,
+              ...baseSubmission
+            })
+          });
+        } catch (webhookError) {
+          console.warn('Webhook notification failed:', webhookError);
+        }
+      }
+
+      setSubmitStatus('Success! Your submission has been received.');
+      resetForm();
+      setStep(1);
     } catch (error) {
       console.error('Submission error:', error);
       setSubmitStatus(`Error: ${error.message}`);
     } finally {
       setSubmitting(false);
-      resetForm();
-      setStep(1);
     }
   };
 
@@ -394,7 +421,10 @@ const SellYourOffice = () => {
 
   const FileUploadBox = ({ fieldName, acceptedTypes, onFileSelect, formik }) => {
     const [isDragging, setIsDragging] = useState(false);
-    const fileName = formik.values[fieldName]?.name;
+    const fileInputRef = useRef(null);
+    const files = formik.values[fieldName] || [];
+    const fileErrors = formik.errors[fieldName];
+    const hasError = formik.touched[fieldName] && fileErrors;
 
     const handleDragOver = (e) => {
       e.preventDefault();
@@ -412,37 +442,90 @@ const SellYourOffice = () => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-      const files = e.dataTransfer.files;
-      if (files?.length) {
-        onFileSelect(files[0]);
-      }
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      handleFiles(droppedFiles);
     };
 
-    const handleFileSelect = (event) => {
-      const file = event.currentTarget.files[0];
-      onFileSelect(file);
+    const handleFiles = (newFiles) => {
+      const validFiles = newFiles.filter(file => {
+        // Validate file type
+        const fileType = file.type;
+        const validTypes = acceptedTypes.split(',').map(type => 
+          type.replace('.', 'application/').replace('doc', 'msword')
+        );
+
+        // Validate file size (10MB)
+        if (file.size > 10000000) {
+          console.warn(`File ${file.name} is too large (max 10MB)`);
+          return false;
+        }
+
+        if (!validTypes.includes(fileType)) {
+          console.warn(`File ${file.name} has invalid type`);
+          return false;
+        }
+
+        return true;
+      });
+
+      // Append new files to existing ones
+      const updatedFiles = [...files, ...validFiles];
+      onFileSelect(updatedFiles);
+    };
+
+    const handleClick = () => {
+      fileInputRef.current?.click();
+    };
+
+    const handleRemoveFile = (index, e) => {
+      e.stopPropagation();
+      const updatedFiles = files.filter((_, i) => i !== index);
+      onFileSelect(updatedFiles);
     };
 
     return (
       <div
-        className={`file-upload-box ${isDragging ? 'dragging' : ''}`}
+        className={`file-upload-box ${isDragging ? 'dragging' : ''} ${hasError ? 'has-error' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onClick={handleClick}
       >
         <input
+          ref={fileInputRef}
           type="file"
           accept={acceptedTypes}
-          onChange={handleFileSelect}
+          multiple
+          onChange={(e) => handleFiles(Array.from(e.target.files || []))}
           style={{ display: 'none' }}
         />
-        <div className="file-upload-icon">📁</div>
-        <div className="file-upload-text">
-          Drag and drop a file here, or click to select
+        <div className="file-upload-content">
+          <div className="file-upload-icon">📁</div>
+          {files.length > 0 ? (
+            <div className="file-list">
+              {files.map((file, index) => (
+                <div key={index} className="file-info">
+                  <span className="file-name">{file.name}</span>
+                  <button 
+                    type="button" 
+                    className="remove-file"
+                    onClick={(e) => handleRemoveFile(index, e)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <div className="file-upload-text">
+                Drop more files or click to select
+              </div>
+            </div>
+          ) : (
+            <div className="file-upload-text">
+              Drag and drop files here, or click to select
+            </div>
+          )}
         </div>
-        {fileName && (
-          <div className="file-name">Selected: {fileName}</div>
-        )}
+        {hasError && <div className="file-error">{fileErrors}</div>}
       </div>
     );
   };
@@ -454,20 +537,20 @@ const SellYourOffice = () => {
           <div className="form-step">
             <h2>Property Details</h2>
             <div className="form-group">
-              <label>Street Address</label>
+              <label>Street Address - Required</label>
               <Field name="streetAddress" className="form-control" />
               {props.errors.streetAddress && props.touched.streetAddress && 
                 <div className="error">{props.errors.streetAddress}</div>}
             </div>
             <div className="form-group">
-              <label>City</label>
+              <label>City - Required</label>
               <Field name="city" className="form-control" />
               {props.errors.city && props.touched.city && 
                 <div className="error">{props.errors.city}</div>}
             </div>
             <div className="form-row">
               <div className="form-group state-select">
-                <label>State</label>
+                <label>State - Required</label>
                 <Field name="state" as="select" className="form-control">
                   {states.map(state => (
                     <option key={state.value} value={state.value}>
@@ -479,7 +562,7 @@ const SellYourOffice = () => {
                   <div className="error">{props.errors.state}</div>}
               </div>
               <div className="form-group zip-code">
-                <label>ZIP Code</label>
+                <label>ZIP Code - Required</label>
                 <Field name="zipCode" className="form-control" />
                 {props.errors.zipCode && props.touched.zipCode && 
                   <div className="error">{props.errors.zipCode}</div>}
@@ -702,12 +785,7 @@ const SellYourOffice = () => {
               {props.errors.askingPrice && props.touched.askingPrice && 
                 <div className="error">{props.errors.askingPrice}</div>}
             </div>
-            <div className="form-group">
-              <label>
-                <Field type="checkbox" name="wouldConsiderFinancing" />
-                Would the seller need all the money upfront, or would consider seller financing? (Taking payments over time could help defer or even eliminate capital gains and other taxes, providing continued cash flow and a higher overall net profit.)
-              </label>
-            </div>
+
             <div className="form-group">
               <label>Number of Tenants</label>
               <Field name="numberOfTenants" type="number" className="form-control" />
@@ -750,7 +828,7 @@ const SellYourOffice = () => {
               <FileUploadBox
                 fieldName="pnlDocuments"
                 acceptedTypes=".pdf,.doc,.docx,.xls,.xlsx"
-                onFileSelect={(file) => props.setFieldValue("pnlDocuments", file)}
+                onFileSelect={(files) => props.setFieldValue("pnlDocuments", files)}
                 formik={props}
               />
             </div>
@@ -759,7 +837,7 @@ const SellYourOffice = () => {
               <FileUploadBox
                 fieldName="leaseAgreement"
                 acceptedTypes=".pdf,.doc,.docx"
-                onFileSelect={(file) => props.setFieldValue("leaseAgreement", file)}
+                onFileSelect={(files) => props.setFieldValue("leaseAgreement", files)}
                 formik={props}
               />
             </div>
@@ -768,7 +846,7 @@ const SellYourOffice = () => {
               <FileUploadBox
                 fieldName="otherDocuments"
                 acceptedTypes=".pdf,.doc,.docx"
-                onFileSelect={(file) => props.setFieldValue("otherDocuments", file)}
+                onFileSelect={(files) => props.setFieldValue("otherDocuments", files)}
                 formik={props}
               />
             </div>
@@ -780,19 +858,14 @@ const SellYourOffice = () => {
           <div className="form-step">
             <h2>Personal Information</h2>
             <div className="form-group">
-              <label>Full Name</label>
-              <Field name="name" className="form-control" />
+              <label>Who should we contact about this deal? - Required</label>
+              <Field name="name" className="form-control" placeholder="Name" />
               {props.errors.name && props.touched.name && <div className="error">{props.errors.name}</div>}
             </div>
             <div className="form-group">
-              <label>Email</label>
-              <Field name="email" type="email" className="form-control" />
+              <label>What is the best email to reach you? - Required</label>
+              <Field name="email" type="email" className="form-control" placeholder="Email"/>
               {props.errors.email && props.touched.email && <div className="error">{props.errors.email}</div>}
-            </div>
-            <div className="form-group">
-              <label>Phone</label>
-              <Field name="phone" className="form-control" />
-              {props.errors.phone && props.touched.phone && <div className="error">{props.errors.phone}</div>}
             </div>
           </div>
         );
@@ -902,6 +975,86 @@ const styles = `
   .repairs-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.file-upload-box {
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.file-upload-box.dragging {
+  background-color: #f8f9fa;
+  border-color: #0056b3;
+}
+
+.file-upload-box.has-error {
+  border-color: #dc3545;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.remove-file {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  font-size: 1rem;
+}
+
+.file-error {
+  color: #dc3545;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.file-upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.file-upload-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.file-name {
+  word-break: break-all;
+}
+
+.file-list {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.file-name {
+  flex: 1;
+  margin-right: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 `;
 
