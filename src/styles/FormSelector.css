@@ -1,0 +1,51 @@
+.form-selector {
+  max-width: 800px;
+  margin: 2rem auto;
+  text-align: center;
+  padding: 1rem;
+}
+
+.selector-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.selector-btn {
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #001b36;
+  border-radius: 4px;
+  background: none;
+  color: #001b36;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.selector-btn.active {
+  background: #001b36;
+  color: white;
+}
+
+.selector-btn:hover {
+  background: #2fb7ab;
+  border-color: #2fb7ab;
+  color: white;
+}
+
+.selector-description {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.property-submission-page {
+  min-height: 100vh;
+}
+
+.form-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}

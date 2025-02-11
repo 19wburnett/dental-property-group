@@ -85,6 +85,11 @@ const validationSchema = Yup.object({
   leaseAgreement: Yup.array().nullable().default([]),
   otherDocuments: Yup.array().nullable().default([]),
 
+  // Add new file upload field validation
+  practicePnlDocuments: Yup.array().nullable().default([]),
+
+  // Add mortgage statement file validation
+  mortgageStatement: Yup.array().nullable().default([]),
 });
 
 const SellYourOffice = () => {
@@ -150,7 +155,13 @@ const SellYourOffice = () => {
     // File Uploads
     pnlDocuments: [],
     leaseAgreement: [],
-    otherDocuments: []
+    otherDocuments: [],
+
+    // Add new file upload field
+    practicePnlDocuments: [],
+
+    // Add mortgage statement file field
+    mortgageStatement: [],
   };
 
   // US States array for the dropdown
@@ -229,7 +240,7 @@ const SellYourOffice = () => {
       };
 
       // Validate all file arrays
-      const fileFields = ['pnlDocuments', 'leaseAgreement', 'otherDocuments'];
+      const fileFields = ['pnlDocuments', 'leaseAgreement', 'otherDocuments', 'practicePnlDocuments', 'mortgageStatement'];
       const fileValidationErrors = fileFields.reduce((errors, field) => {
         if (!validateFiles(values[field])) {
           errors[field] = 'Invalid files detected. Please check file types and sizes.';
@@ -310,8 +321,10 @@ const SellYourOffice = () => {
       if (submissionData?.[0]?.id) {
         const submissionId = submissionData[0].id;
         const fileTypes = [
-          { field: 'pnlDocuments', type: 'pnl', label: 'P&L Documents' },
+          { field: 'pnlDocuments', type: 'pnl', label: 'Property P&L Documents' },
+          { field: 'practicePnlDocuments', type: 'practice_pnl', label: 'Practice P&L Documents' },
           { field: 'leaseAgreement', type: 'lease', label: 'Lease Agreement' },
+          { field: 'mortgageStatement', type: 'mortgage', label: 'Mortgage Statement' },
           { field: 'otherDocuments', type: 'other', label: 'Other Documents' }
         ];
 
@@ -794,10 +807,36 @@ const SellYourOffice = () => {
             </div>
             <div className="form-group">
               <label>Amount Owed on Mortgage ($)</label>
-              <Field name="mortgageOwed" type="number" className="form-control" />
+              <Field 
+                name="mortgageOwed" 
+                type="number" 
+                className="form-control"
+                onChange={(e) => {
+                  props.setFieldValue('mortgageOwed', e.target.value);
+                  // Clear mortgage statement if mortgage owed is set to 0 or empty
+                  if (!e.target.value || e.target.value === '0') {
+                    props.setFieldValue('mortgageStatement', []);
+                  }
+                }}
+              />
               {props.errors.mortgageOwed && props.touched.mortgageOwed && 
                 <div className="error">{props.errors.mortgageOwed}</div>}
             </div>
+
+            {/* Show mortgage statement upload if mortgage owed is greater than 0 */}
+            {props.values.mortgageOwed > 0 && (
+              <div className="form-group">
+                <label>Most Recent Mortgage Statement</label>
+                <div className="form-hint">Please upload your most recent mortgage statement</div>
+                <FileUploadBox
+                  fieldName="mortgageStatement"
+                  acceptedTypes=".pdf,.doc,.docx"
+                  onFileSelect={(files) => props.setFieldValue("mortgageStatement", files)}
+                  formik={props}
+                />
+              </div>
+            )}
+
             <div className="form-group">
               <label>
                 <Field type="checkbox" name="isAssumable" />
@@ -824,11 +863,22 @@ const SellYourOffice = () => {
           <div className="form-step">
             <h2>Document Upload</h2>
             <div className="form-group">
-              <label>P&L and Operating Documents (Last 3 Years)</label>
+              <label>Property P&L and Operating Documents (Last 3 Years)</label>
+              <div className="form-hint">Upload financial documents related to the real estate property</div>
               <FileUploadBox
                 fieldName="pnlDocuments"
                 acceptedTypes=".pdf,.doc,.docx,.xls,.xlsx"
                 onFileSelect={(files) => props.setFieldValue("pnlDocuments", files)}
+                formik={props}
+              />
+            </div>
+            <div className="form-group">
+              <label>Practice P&L Documents (Last 3 Years)</label>
+              <div className="form-hint">Upload financial documents related to the dental practice operations</div>
+              <FileUploadBox
+                fieldName="practicePnlDocuments"
+                acceptedTypes=".pdf,.doc,.docx,.xls,.xlsx"
+                onFileSelect={(files) => props.setFieldValue("practicePnlDocuments", files)}
                 formik={props}
               />
             </div>
@@ -1055,6 +1105,12 @@ const styles = `
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.form-hint {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.5rem;
 }
 `;
 
