@@ -16,7 +16,9 @@ const WEBHOOK_ENDPOINT = process.env.NODE_ENV === 'production'
 
 // Update validation schema
 const validationSchema = Yup.object({
+
   // Property Details (Required)
+  
   streetAddress: Yup.string().required('Required'),
   city: Yup.string().required('Required'),
   state: Yup.string().required('Required'),
@@ -221,6 +223,7 @@ const SellYourOffice = () => {
   ];
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
+    console.log('Form is being submitted with values:', values); // Debugging line
     try {
       // Validate files before submission
       const validateFiles = (files) => {

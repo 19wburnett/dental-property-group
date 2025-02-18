@@ -1062,3 +1062,8 @@ body {
     align-self: flex-end;
   }
 }
+
+.property-submission-page {
+  padding: 2rem 10rem;
+}
+

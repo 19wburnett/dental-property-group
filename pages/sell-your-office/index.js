@@ -1,7 +1,7 @@
 import React from 'react';
-import QuickPropertySubmission from './QuickPropertySubmission';
+import QuickPropertySubmission from '../../src/components/QuickPropertySubmission';
 
-const PropertySubmissionPage = () => {
+const SellYourOfficePage = () => {
   return (
     <div className="property-submission-page">
       <div className="form-container">
@@ -11,4 +11,4 @@ const PropertySubmissionPage = () => {
   );
 };
 
-export default PropertySubmissionPage;
+export default SellYourOfficePage; 
