@@ -26,7 +26,7 @@ const Navbar = () => {
       </div>
       <div className={`links ${isOpen ? 'mobile-active' : ''}`}>
         <Link className={isActive("/")} to="/" onClick={() => setIsOpen(false)}>Home</Link>
-        <Link className={isActive("/sell-your-office")} to="/sell-your-office" onClick={() => setIsOpen(false)}>Submit a Deal</Link>
+        <Link className={isActive("/get-an-estimate")} to="/get-an-estimate" onClick={() => setIsOpen(false)}>Submit a Deal</Link>
       </div>
     </nav>
   );

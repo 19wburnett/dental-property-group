@@ -3,6 +3,7 @@ import { Formik, Form, Field } from 'formik';
 import * as Yup from 'yup';
 import { createClient } from '@supabase/supabase-js';
 import SellYourOffice from './SellYourOffice';
+import { useNavigate } from 'react-router-dom';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -41,6 +42,7 @@ const QuickPropertySubmission = () => {
   const [submissionId, setSubmissionId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
+  const navigate = useNavigate();
 
   const initialValues = {
     leaseDocuments: [],
@@ -135,6 +137,7 @@ const QuickPropertySubmission = () => {
     };
 
     const handleFiles = (newFiles) => {
+      console.log('Selected files:', newFiles); // Log selected files
       const validFiles = newFiles.filter(file => {
         if (file.size > 10000000) {
           console.warn(`File ${file.name} is too large (max 10MB)`);
@@ -154,16 +157,15 @@ const QuickPropertySubmission = () => {
         return true;
       });
 
-      if (maxFiles) {
-        const totalFiles = files.length + validFiles.length;
-        if (totalFiles > maxFiles) {
-          alert(`Maximum ${maxFiles} files allowed`);
-          return;
-        }
-      }
+      console.log('Valid files:', validFiles); // Log valid files after filtering
 
-      const updatedFiles = [...files, ...validFiles];
-      onFileSelect(updatedFiles);
+      // Ensure valid files are being passed to Formik
+      if (validFiles.length > 0) {
+        const updatedFiles = [...files, ...validFiles];
+        onFileSelect(updatedFiles);
+      } else {
+        console.warn('No valid files selected');
+      }
     };
 
     const handleRemoveFile = (index, e) => {
@@ -209,39 +211,26 @@ const QuickPropertySubmission = () => {
     );
   };
 
-  const analyzeLease = async (fileUrl) => {
+  const analyzeLease = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
     try {
-      console.log('Attempting to analyze lease with URL:', fileUrl);
-      const response = await fetch('/api/analyze-lease', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ fileUrl }),
-      });
-      
-      // Log the raw response
-      console.log('API Response status:', response.status);
-      const responseText = await response.text();
-      console.log('API Response text:', responseText);
-      
-      // Try to parse the response
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (e) {
-        console.error('Failed to parse API response:', e);
-        throw new Error('Invalid API response format');
-      }
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to analyze lease');
-      }
-      
-      return data;
+        const response = await fetch('/api/analyze-lease', {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return data; // This will contain the rent amount and lease type
     } catch (error) {
-      console.error('Lease analysis error:', error);
-      throw error;
+        console.error('Lease analysis error:', error);
+        throw error;
     }
   };
 
@@ -276,6 +265,13 @@ const QuickPropertySubmission = () => {
     setProcessingStatus('Submitting your property information...');
     
     try {
+      // Ensure leaseDocuments is not empty
+      if (values.leaseDocuments.length === 0) {
+        throw new Error('No lease document provided');
+      }
+
+      const leaseFile = values.leaseDocuments[0];
+
       // Create base submission first
       const baseSubmission = {
         street_address: values.streetAddress,
@@ -306,95 +302,59 @@ const QuickPropertySubmission = () => {
       
       // Handle lease document analysis
       setProcessingStatus('Analyzing lease documents...');
-      const leaseFile = values.leaseDocuments[0];
       
-      if (!leaseFile) {
-        throw new Error('No lease document provided');
-      }
-
-      // Upload lease to Supabase storage
-      const timestamp = new Date().getTime();
-      const fileName = `lease_${timestamp}_${leaseFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const filePath = `${submissionData[0].id}/lease/${fileName}`;
-
-      const { data: fileData, error: uploadError } = await supabase.storage
-        .from('property-documents')
-        .upload(filePath, leaseFile);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL for the uploaded file
-      const { data: { publicUrl } } = supabase.storage
-        .from('property-documents')
-        .getPublicUrl(filePath);
-
-      if (!publicUrl) {
-        throw new Error('Failed to get public URL for lease document');
-      }
-
       // Analyze lease using ChatGPT
-      setProcessingStatus('Analyzing lease terms...');
-      const leaseAnalysis = await analyzeLease(publicUrl);
+      const response = await analyzeLease(leaseFile);
       
-      if (!leaseAnalysis || !leaseAnalysis.rentAmount) {
+      if (!response || !response.rentAmount) {
         throw new Error('Failed to extract rent amount from lease');
       }
 
-      // Calculate return percentage
-      const returnPercentage = calculateReturnPercentage(
-        leaseAnalysis.rentAmount,
-        leaseAnalysis.leaseType,
-        values.askingPrice
-      );
+      // Calculate annual rent and cap rate based on lease type
+      const annualRent = response.rentAmount * 12; // Convert monthly rent to annual
+      let capRate = 0;
 
-      console.log('Analysis results:', {
-        rentAmount: leaseAnalysis.rentAmount,
-        leaseType: leaseAnalysis.leaseType,
-        returnPercentage
+      // Ensure askingPrice is a number
+      const askingPrice = Number(values.askingPrice);
+
+      // Log the values before calculation
+      console.log('Values before cap rate calculation:', {
+        rentAmount: response.rentAmount,
+        annualRent: annualRent,
+        leaseType: response.leaseType,
+        askingPrice: askingPrice,
+        rentAmountType: typeof response.rentAmount,
+        askingPriceType: typeof askingPrice
       });
 
-      // Update submission with analysis results
-      const { error: updateError } = await supabase
-        .from('quick_property_submissions')
-        .update({
-          monthly_rent: leaseAnalysis.rentAmount,
-          lease_type: leaseAnalysis.leaseType,
-          return_percentage: returnPercentage,
-          lease_file_path: filePath
-        })
-        .eq('id', submissionData[0].id);
-
-      if (updateError) throw updateError;
-
-      // After successful file upload to storage, add record to property_files table
-      const fileRecord = {
-        submission_id: submissionData[0].id,
-        file_name: leaseFile.name,
-        file_type: 'lease',
-        file_path: filePath,
-        file_size: leaseFile.size,
-        mime_type: leaseFile.type,
-        display_name: 'Lease Agreement',
-        status: 'uploaded',
-        uploaded_at: new Date().toISOString()
-      };
-
-      const { error: fileRecordError } = await supabase
-        .from('property_files')
-        .insert([fileRecord]);
-
-      if (fileRecordError) {
-        console.error('Error recording file metadata:', fileRecordError);
-        throw new Error('Failed to record file metadata');
+      // Check for valid asking price
+      if (askingPrice <= 0) {
+        throw new Error('Asking price must be greater than zero.');
       }
 
-      // Check if return percentage meets criteria
-      if (returnPercentage >= 9) {
-        setShowCompleteForm(true);
-        setSubmitStatus('Your property meets our initial criteria. Please complete the full form.');
+      // Adjust cap rate calculation based on lease type
+      if (response.leaseType.toLowerCase() === 'triple net') {
+        capRate = (annualRent * 0.9) / askingPrice * 100; // 90% of annual rent for Triple Net
       } else {
-        setSubmitStatus('Thank you for your submission. We will review your property and contact you if it meets our investment criteria.');
-        resetForm();
+        capRate = (annualRent * 0.7) / askingPrice * 100; // 70% of annual rent for anything else
+      }
+
+      // Log the details of the cap rate calculation
+      console.log('Cap Rate Calculation Details:', {
+        rentAmount: response.rentAmount,
+        annualRent: annualRent,
+        leaseType: response.leaseType,
+        askingPrice: askingPrice,
+        capRate: capRate
+      });
+
+      // Check if cap rate meets criteria
+      if (capRate < 9) {
+        // Navigate to the Contact Us page if cap rate is below 9%
+        navigate('/contact-us'); // Redirect to the Contact Us page
+      } else {
+        // Navigate to the Success page if cap rate is valid
+        navigate('/success'); // Redirect to the Success page
       }
     } catch (error) {
       console.error('Submission error:', error);
@@ -407,7 +367,7 @@ const QuickPropertySubmission = () => {
   };
 
   return (
-    <div className="quick-submit-container">
+    <div className="quick-submit-container" style={{ marginTop: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
       {isLoading ? (
         <div className="loading-state">
           <div className="spinner"></div>
