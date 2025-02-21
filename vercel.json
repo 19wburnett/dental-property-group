@@ -22,7 +22,7 @@
     }
   ],
   "functions": {
-    "api/analyze-lease.js": {
+    "pages/api/analyze-lease.js": {
       "memory": 1024,
       "maxDuration": 60
     }
