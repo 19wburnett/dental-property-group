@@ -34,6 +34,9 @@ const validationSchema = Yup.object({
   zipCode: Yup.string()
     .matches(/^[0-9]{5}(-[0-9]{4})?$/, 'Invalid ZIP code')
     .required('Required'),
+  monthlyRent: Yup.number()
+    .min(0, 'Must be 0 or greater')
+    .required('Required'),
 });
 
 const QuickPropertySubmission = () => {
@@ -54,6 +57,7 @@ const QuickPropertySubmission = () => {
     city: '',
     state: '',
     zipCode: '',
+    monthlyRent: '',
   };
 
   // US States array for the dropdown
@@ -270,8 +274,6 @@ const QuickPropertySubmission = () => {
         throw new Error('No lease document provided');
       }
 
-      const leaseFile = values.leaseDocuments[0];
-
       // Create base submission first
       const baseSubmission = {
         street_address: values.streetAddress,
@@ -279,6 +281,7 @@ const QuickPropertySubmission = () => {
         is_assumable: values.isAssumable,
         anticipated_repairs: values.anticipatedRepairs,
         asking_price: Number(values.askingPrice),
+        monthly_rent: Number(values.monthlyRent),
         created_at: new Date().toISOString(),
         status: 'pending_review',
         submission_source: 'quick_form',
@@ -299,62 +302,19 @@ const QuickPropertySubmission = () => {
       }
 
       setSubmissionId(submissionData[0].id);
-      
-      // Handle lease document analysis
-      setProcessingStatus('Analyzing lease documents...');
-      
-      // Analyze lease using ChatGPT
-      const response = await analyzeLease(leaseFile);
-      
-      if (!response || !response.rentAmount) {
-        throw new Error('Failed to extract rent amount from lease');
-      }
 
-      // Calculate annual rent and cap rate based on lease type
-      const annualRent = response.rentAmount * 12; // Convert monthly rent to annual
-      let capRate = 0;
-
-      // Ensure askingPrice is a number
+      // Calculate cap rate using input monthly rent
+      const annualRent = Number(values.monthlyRent) * 12;
       const askingPrice = Number(values.askingPrice);
-
-      // Log the values before calculation
-      console.log('Values before cap rate calculation:', {
-        rentAmount: response.rentAmount,
-        annualRent: annualRent,
-        leaseType: response.leaseType,
-        askingPrice: askingPrice,
-        rentAmountType: typeof response.rentAmount,
-        askingPriceType: typeof askingPrice
-      });
-
-      // Check for valid asking price
-      if (askingPrice <= 0) {
-        throw new Error('Asking price must be greater than zero.');
-      }
-
-      // Adjust cap rate calculation based on lease type
-      if (response.leaseType.toLowerCase() === 'triple net') {
-        capRate = (annualRent * 0.9) / askingPrice * 100; // 90% of annual rent for Triple Net
-      } else {
-        capRate = (annualRent * 0.7) / askingPrice * 100; // 70% of annual rent for anything else
-      }
-
-      // Log the details of the cap rate calculation
-      console.log('Cap Rate Calculation Details:', {
-        rentAmount: response.rentAmount,
-        annualRent: annualRent,
-        leaseType: response.leaseType,
-        askingPrice: askingPrice,
-        capRate: capRate
-      });
+      
+      // Default to non-triple net calculation
+      const capRate = (annualRent * 0.7) / askingPrice * 100;
 
       // Check if cap rate meets criteria
       if (capRate < 9) {
-        // Navigate to the Contact Us page if cap rate is below 9%
-        navigate('/contact-us'); // Redirect to the Contact Us page
+        navigate('/contact-us');
       } else {
-        // Navigate to the Success page if cap rate is valid
-        navigate('/success'); // Redirect to the Success page
+        navigate('/success');
       }
     } catch (error) {
       console.error('Submission error:', error);
@@ -367,7 +327,7 @@ const QuickPropertySubmission = () => {
   };
 
   return (
-    <div className="quick-submit-container" style={{ marginTop: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+    <div className="quick-submit-container" style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', padding:'40px'}}>
       {isLoading ? (
         <div className="loading-state">
           <div className="spinner"></div>
@@ -489,7 +449,19 @@ const QuickPropertySubmission = () => {
                       <div className="error">{formikProps.errors.askingPrice}</div>}
                   </div>
 
-                  <div className="form-actions">
+                  <div className="form-group">
+                    <label>Monthly Rent ($) *</label>
+                    <Field
+                      name="monthlyRent"
+                      type="number"
+                      className="form-control"
+                      placeholder="Enter current monthly rent"
+                    />
+                    {formikProps.errors.monthlyRent && formikProps.touched.monthlyRent && 
+                      <div className="error">{formikProps.errors.monthlyRent}</div>}
+                  </div>
+
+                  <div className="form-actions" style={{marginBottom:'20px'}}>
                     <button
                       type="submit"
                       className="btn-primary"

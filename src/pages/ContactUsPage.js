@@ -15,6 +15,8 @@ const ContactUsPage = () => {
         title: '',
         email: ''
     });
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
     const navigate = useNavigate();
 
     const handleChange = (e) => {
@@ -24,6 +26,7 @@ const ContactUsPage = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
         try {
             // Insert data into Supabase
             const { data, error } = await supabase
@@ -39,14 +42,32 @@ const ContactUsPage = () => {
 
             if (error) throw error;
 
-            console.log('Contact form submitted:', data);
-            // Redirect to a thank you page or similar
-            navigate('/thank-you'); // Adjust this as needed
+            setIsSuccess(true);
         } catch (error) {
             console.error('Error submitting contact form:', error);
             // Handle error (e.g., show a message to the user)
+        } finally {
+            setIsLoading(false);
         }
     };
+
+    if (isSuccess) {
+        return (
+            <div style={{ textAlign: 'center', marginTop: '50px', height:'60vh', display:'flex', flexDirection:'column', justifyContent:'center' }}>
+                <div className="success-message">
+                    <h2>Thank you for your submission!</h2>
+                    <p>We'll be in touch shortly.</p>
+                    <button 
+                        onClick={() => navigate('/')}
+                        className="btn-primary"
+                        style={{ marginTop: '20px' }}
+                    >
+                        Return to Homepage
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={{ textAlign: 'center', marginTop: '50px' }}>
@@ -89,10 +110,56 @@ const ContactUsPage = () => {
                     onChange={handleChange}
                     required
                 />
-                <button type="submit" className="btn-primary">Submit</button>
+                <button 
+                    type="submit" 
+                    className={`btn-primary ${isLoading ? 'loading' : ''}`}
+                    disabled={isLoading}
+                >
+                    {isLoading ? (
+                        <div className="loading-spinner">
+                            <div className="spinner"></div>
+                            <span>Submitting...</span>
+                        </div>
+                    ) : (
+                        'Submit'
+                    )}
+                </button>
             </form>
+            <style>{`
+                .loading-spinner {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .spinner {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid #ffffff;
+                    border-top-color: transparent;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+                .success-message {
+                    padding: 2rem;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                }
+                .checkmark {
+                    color: #4CAF50;
+                    font-size: 48px;
+                    margin: 20px 0;
+                }
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+                .btn-primary.loading {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                }
+            `}</style>
         </div>
     );
 };
 
-export default ContactUsPage; 
+export default ContactUsPage;

@@ -720,7 +720,7 @@ body {
 
 @media (max-width: 768px) {
   .step-label {
-    font-size: 10px;
+    display: none;
   }
 }
 
