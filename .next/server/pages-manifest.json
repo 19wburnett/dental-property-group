@@ -1,0 +1,8 @@
+{
+  "/_app": "pages/_app.js",
+  "/_error": "pages/_error.js",
+  "/_document": "pages/_document.js",
+  "/sell-your-office": "pages/sell-your-office.js",
+  "/quick-property-submission": "pages/quick-property-submission.js",
+  "/success": "pages/success.js"
+}

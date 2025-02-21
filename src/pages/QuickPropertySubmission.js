@@ -211,29 +211,41 @@ const QuickPropertySubmission = () => {
     );
   };
 
-  const analyzeLease = async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
+  const analyzeLease = async (leaseFile, askingPrice) => {
     try {
-        const response = await fetch('/api/analyze-lease', {
-            method: 'POST',
-            body: formData,
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API error: ${response.status} ${response.statusText}`);
+      const formData = new FormData();
+      formData.append('file', leaseFile);
+      formData.append('askingPrice', askingPrice.toString());
+  
+      const response = await fetch('/api/analyze-lease', {
+        method: 'POST',
+        body: formData
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Response:', errorText); // Add logging
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || `API error: ${response.status}`);
+        } catch (e) {
+          throw new Error(`API error: ${response.status} - ${errorText}`);
         }
-
-        const data = await response.json();
-        return data; // This will contain the rent amount and lease type
+      }
+  
+      const data = await response.json();
+      console.log('API Response data:', data); // Add logging
+  
+      if (!data.rentAmount || !data.leaseType) {
+        throw new Error('Invalid response from lease analysis');
+      }
+  
+      return data;
     } catch (error) {
-        console.error('Lease analysis error:', error);
-        throw error;
+      console.error('Lease analysis error:', error);
+      throw error;
     }
   };
-
   const calculateReturnPercentage = (rentAmount, leaseType, askingPrice) => {
     if (!rentAmount || !askingPrice || askingPrice === 0) return 0;
     
@@ -265,97 +277,56 @@ const QuickPropertySubmission = () => {
     setProcessingStatus('Submitting your property information...');
     
     try {
-      // Ensure leaseDocuments is not empty
-      if (values.leaseDocuments.length === 0) {
+      if (!values.leaseDocuments || values.leaseDocuments.length === 0) {
         throw new Error('No lease document provided');
       }
-
+  
       const leaseFile = values.leaseDocuments[0];
-
-      // Create base submission first
+      const askingPrice = Number(values.askingPrice);
+  
+      // Analyze lease document
+      setProcessingStatus('Analyzing lease documents...');
+      const analysisResult = await analyzeLease(leaseFile, askingPrice);
+  
+      // Create base submission
       const baseSubmission = {
         street_address: values.streetAddress,
         mortgage_owed: Number(values.mortgageOwed),
         is_assumable: values.isAssumable,
         anticipated_repairs: values.anticipatedRepairs,
-        asking_price: Number(values.askingPrice),
+        asking_price: askingPrice,
         created_at: new Date().toISOString(),
         status: 'pending_review',
         submission_source: 'quick_form',
         city: values.city,
         state: values.state,
         zip_code: values.zipCode,
+        rent_amount: analysisResult.rentAmount,
+        lease_type: analysisResult.leaseType,
+        cap_rate: analysisResult.capRate
       };
-
+  
+      // Submit to Supabase
       const { data: submissionData, error: submissionError } = await supabase
         .from('quick_property_submissions')
         .insert([baseSubmission])
         .select();
-
+  
       if (submissionError) throw submissionError;
-
+  
       if (!submissionData?.[0]?.id) {
         throw new Error('Failed to create submission record');
       }
-
+  
       setSubmissionId(submissionData[0].id);
-      
-      // Handle lease document analysis
-      setProcessingStatus('Analyzing lease documents...');
-      
-      // Analyze lease using ChatGPT
-      const response = await analyzeLease(leaseFile);
-      
-      if (!response || !response.rentAmount) {
-        throw new Error('Failed to extract rent amount from lease');
-      }
-
-      // Calculate annual rent and cap rate based on lease type
-      const annualRent = response.rentAmount * 12; // Convert monthly rent to annual
-      let capRate = 0;
-
-      // Ensure askingPrice is a number
-      const askingPrice = Number(values.askingPrice);
-
-      // Log the values before calculation
-      console.log('Values before cap rate calculation:', {
-        rentAmount: response.rentAmount,
-        annualRent: annualRent,
-        leaseType: response.leaseType,
-        askingPrice: askingPrice,
-        rentAmountType: typeof response.rentAmount,
-        askingPriceType: typeof askingPrice
-      });
-
-      // Check for valid asking price
-      if (askingPrice <= 0) {
-        throw new Error('Asking price must be greater than zero.');
-      }
-
-      // Adjust cap rate calculation based on lease type
-      if (response.leaseType.toLowerCase() === 'triple net') {
-        capRate = (annualRent * 0.9) / askingPrice * 100; // 90% of annual rent for Triple Net
+  
+      // Check cap rate and navigate
+      if (analysisResult.capRate < 9) {
+        navigate('/contact-us');
       } else {
-        capRate = (annualRent * 0.7) / askingPrice * 100; // 70% of annual rent for anything else
+        navigate('/success');
       }
-
-      // Log the details of the cap rate calculation
-      console.log('Cap Rate Calculation Details:', {
-        rentAmount: response.rentAmount,
-        annualRent: annualRent,
-        leaseType: response.leaseType,
-        askingPrice: askingPrice,
-        capRate: capRate
-      });
-
-      // Check if cap rate meets criteria
-      if (capRate < 9) {
-        // Navigate to the Contact Us page if cap rate is below 9%
-        navigate('/contact-us'); // Redirect to the Contact Us page
-      } else {
-        // Navigate to the Success page if cap rate is valid
-        navigate('/success'); // Redirect to the Success page
-      }
+  
     } catch (error) {
       console.error('Submission error:', error);
       setSubmitStatus(`Error: ${error.message}`);
@@ -365,7 +336,6 @@ const QuickPropertySubmission = () => {
       setProcessingStatus('');
     }
   };
-
   return (
     <div className="quick-submit-container" style={{ marginTop: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
       {isLoading ? (
