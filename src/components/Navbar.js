@@ -16,7 +16,7 @@ const Navbar = () => {
 
   return (
     <nav className="navbar">
-      <a href="https://dentalpropertygroup.com/" target="_blank" rel="noopener noreferrer">
+      <a href="https://dentalpropertygroup.com/" rel="noopener noreferrer">
         <img className="dpg-logo" src={DPGLogo} alt="DPG Logo" />
       </a>
       <div className="hamburger" onClick={toggleMenu}>
