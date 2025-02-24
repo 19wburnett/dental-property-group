@@ -16,16 +16,15 @@ const Navbar = () => {
 
   return (
     <nav className="navbar">
-      <Link to="/">
+      <a href="https://dentalpropertygroup.com/" target="_blank" rel="noopener noreferrer">
         <img className="dpg-logo" src={DPGLogo} alt="DPG Logo" />
-      </Link>
+      </a>
       <div className="hamburger" onClick={toggleMenu}>
         <span></span>
         <span></span>
         <span></span>
       </div>
       <div className={`links ${isOpen ? 'mobile-active' : ''}`}>
-        <Link className={isActive("/")} to="/" onClick={() => setIsOpen(false)}>Home</Link>
         <Link className={isActive("/get-an-estimate")} to="/get-an-estimate" onClick={() => setIsOpen(false)}>Submit a Deal</Link>
       </div>
     </nav>
