@@ -117,28 +117,28 @@ const SellYourOffice = () => {
     repairs: {
       roof: { done: false, year: '', cost: '' },
       siding: { done: false, year: '', cost: '' },
-      windowsAndDoors: { done: false, year: '', cost: '' },
+      windowsanddoors: { done: false, year: '', cost: '' },
       hvac: { done: false, year: '', cost: '' },
       signage: { done: false, year: '', cost: '' },
       walkways: { done: false, year: '', cost: '' },
-      parkingLot: { done: false, year: '', cost: '' },
+      parkinglot: { done: false, year: '', cost: '' },
       landscaping: { done: false, year: '', cost: '' },
       foundation: { done: false, year: '', cost: '' },
-      otherCapex: { done: false, year: '', cost: '' }
+      othercapex: { done: false, year: '', cost: '' }
     },
 
     // Future Repairs
     futureRepairs: {
       roof: { needed: false, yearsUntilNeeded: '' },
       siding: { needed: false, yearsUntilNeeded: '' },
-      windowsAndDoors: { needed: false, yearsUntilNeeded: '' },
+      windowsanddoors: { needed: false, yearsUntilNeeded: '' },
       hvac: { needed: false, yearsUntilNeeded: '' },
       signage: { needed: false, yearsUntilNeeded: '' },
       walkways: { needed: false, yearsUntilNeeded: '' },
-      parkingLot: { needed: false, yearsUntilNeeded: '' },
+      parkinglot: { needed: false, yearsUntilNeeded: '' },
       landscaping: { needed: false, yearsUntilNeeded: '' },
       foundation: { needed: false, yearsUntilNeeded: '' },
-      otherCapex: { needed: false, yearsUntilNeeded: '' }
+      othercapex: { needed: false, yearsUntilNeeded: '' }
     },
 
     // Financial Details
@@ -275,28 +275,29 @@ const SellYourOffice = () => {
         year_built: values.yearBuilt ? Number(values.yearBuilt) : null,
         has_been_renovated: values.hasBeenRenovated,
         renovation_year: values.hasBeenRenovated && values.renovationYear ? Number(values.renovationYear) : null,
-        additional_fees: values.additionalFees,
+        
+        // Flatten additional fees into separate columns
+        // Convert array to numbered fields
+        ...values.additionalFees.reduce((acc, fee, index) => ({
+          ...acc,
+          [`fee_type_${index + 1}`]: fee.feeType,
+          [`fee_amount_${index + 1}`]: fee.amount
+        }), {}),
 
-        // Past Repairs & Maintenance
-        past_repairs: Object.entries(values.repairs).reduce((acc, [key, value]) => {
-          if (value.done) {
-            acc[key] = {
-              year_completed: value.year ? Number(value.year) : null,
-              cost: value.cost ? Number(value.cost) : null
-            };
-          }
-          return acc;
-        }, {}),
+        // Past Repairs & Maintenance - Flatten into individual fields
+        ...Object.entries(values.repairs).reduce((acc, [key, value]) => ({
+          ...acc,
+          [`repair_${key}_done`]: value.done,
+          [`repair_${key}_year`]: value.done ? value.year : null,
+          [`repair_${key}_cost`]: value.done ? value.cost : null
+        }), {}),
 
-        // Future Repairs
-        future_repairs: Object.entries(values.futureRepairs).reduce((acc, [key, value]) => {
-          if (value.needed) {
-            acc[key] = {
-              years_until_needed: value.yearsUntilNeeded ? Number(value.yearsUntilNeeded) : null
-            };
-          }
-          return acc;
-        }, {}),
+        // Future Repairs - Flatten into individual fields
+        ...Object.entries(values.futureRepairs).reduce((acc, [key, value]) => ({
+          ...acc,
+          [`future_repair_${key}_needed`]: value.needed,
+          [`future_repair_${key}_years_until_needed`]: value.needed ? value.yearsUntilNeeded : null
+        }), {}),
 
         // Financial Details
         practice_name: values.practiceName,
@@ -305,6 +306,22 @@ const SellYourOffice = () => {
         mortgage_owed: values.mortgageOwed ? Number(values.mortgageOwed) : null,
         is_assumable: values.isAssumable,
         can_be_transferred: values.isAssumable ? values.canBeTransferred : null,
+
+        // Document Information - Convert arrays to counts and concatenated names
+        pnl_documents_count: values.pnlDocuments?.length || 0,
+        pnl_documents_names: values.pnlDocuments?.map(f => f.name).join('; ') || '',
+        
+        practice_pnl_documents_count: values.practicePnlDocuments?.length || 0,
+        practice_pnl_documents_names: values.practicePnlDocuments?.map(f => f.name).join('; ') || '',
+        
+        lease_documents_count: values.leaseAgreement?.length || 0,
+        lease_documents_names: values.leaseAgreement?.map(f => f.name).join('; ') || '',
+        
+        mortgage_documents_count: values.mortgageStatement?.length || 0,
+        mortgage_documents_names: values.mortgageStatement?.map(f => f.name).join('; ') || '',
+        
+        other_documents_count: values.otherDocuments?.length || 0,
+        other_documents_names: values.otherDocuments?.map(f => f.name).join('; ') || '',
 
         // Metadata
         created_at: new Date().toISOString(),
@@ -681,14 +698,14 @@ const SellYourOffice = () => {
         const repairItems = [
           { key: 'roof', label: 'Roof' },
           { key: 'siding', label: 'Siding' },
-          { key: 'windowsAndDoors', label: 'Windows and Doors' },
+          { key: 'windowsanddoors', label: 'Windows and Doors' },
           { key: 'hvac', label: 'HVAC' },
           { key: 'signage', label: 'Signage' },
           { key: 'walkways', label: 'Walkways' },
-          { key: 'parkingLot', label: 'Parking Lot' },
+          { key: 'parkinglot', label: 'Parking Lot' },
           { key: 'landscaping', label: 'Landscaping' },
           { key: 'foundation', label: 'Foundation' },
-          { key: 'otherCapex', label: 'Other Capex' }
+          { key: 'othercapex', label: 'Other Capex' }
         ];
 
         return (
@@ -738,14 +755,14 @@ const SellYourOffice = () => {
         const futureRepairItems = [
           { key: 'roof', label: 'Roof' },
           { key: 'siding', label: 'Siding' },
-          { key: 'windowsAndDoors', label: 'Windows and Doors' },
+          { key: 'windowsanddoors', label: 'Windows and Doors' },
           { key: 'hvac', label: 'HVAC' },
           { key: 'signage', label: 'Signage' },
           { key: 'walkways', label: 'Walkways' },
-          { key: 'parkingLot', label: 'Parking Lot' },
+          { key: 'parkinglot', label: 'Parking Lot' },
           { key: 'landscaping', label: 'Landscaping' },
           { key: 'foundation', label: 'Foundation' },
-          { key: 'otherCapex', label: 'Other Capex' }
+          { key: 'othercapex', label: 'Other Capex' }
         ];
 
         return (
