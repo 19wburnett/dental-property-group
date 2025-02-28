@@ -25,10 +25,35 @@ const Navbar = () => {
         <span></span>
       </div>
       <div className={`links ${isOpen ? 'mobile-active' : ''}`}>
-        <Link className={isActive("/get-an-estimate")} to="/get-an-estimate" onClick={() => setIsOpen(false)}>Submit a Deal</Link>
+        <a className={isActive("/")} href="https://dentalpropertygroup.com/" rel="noopener noreferrer">Home</a>
+        <a className={isActive("/about")} href="https://dentalpropertygroup.com/whypartner" rel="noopener noreferrer">Why Partner</a>
+        <div>
+          <Link className="submit-deal" to="/get-an-estimate" onClick={() => setIsOpen(false)}>
+            Submit Deal
+            <span className="arrow-icon">➜</span>
+          </Link>
+        </div>
       </div>
     </nav>
   );
 };
+
+const styles = document.createElement('style');
+styles.textContent = `
+  .submit-deal {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .arrow-icon {
+    transition: transform 0.2s ease;
+  }
+
+  .submit-deal:hover .arrow-icon {
+    transform: translateX(4px);
+  }
+`;
+document.head.appendChild(styles);
 
 export default Navbar;

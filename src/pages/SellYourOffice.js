@@ -75,6 +75,17 @@ const validationSchema = Yup.object({
       otherwise: () => Yup.boolean().nullable()
     }),
 
+  // Add new lease-related validations
+  newMonthlyLease: Yup.number()
+    .nullable()
+    .transform((value, originalValue) => 
+      originalValue === '' ? null : value
+    )
+    .min(0, 'Must be 0 or greater'),
+  tenantPaysUtilities: Yup.boolean(),
+  tenantPaysTaxes: Yup.boolean(),
+  tenantPaysInsurance: Yup.boolean(),
+
   // Personal Info (Required)
   name: Yup.string().required('Required'),
   email: Yup.string().email('Invalid email').required('Required'),
@@ -148,6 +159,12 @@ const SellYourOffice = () => {
     mortgageOwed: '',
     isAssumable: false,
     canBeTransferred: false,
+
+    // Add new lease-related fields
+    newMonthlyLease: '',
+    tenantPaysUtilities: false,
+    tenantPaysTaxes: false,
+    tenantPaysInsurance: false,
 
     // Personal Info
     name: '',
@@ -306,6 +323,12 @@ const SellYourOffice = () => {
         mortgage_owed: values.mortgageOwed ? Number(values.mortgageOwed) : null,
         is_assumable: values.isAssumable,
         can_be_transferred: values.isAssumable ? values.canBeTransferred : null,
+
+        // Add new lease-related fields
+        new_monthly_lease: values.newMonthlyLease ? Number(values.newMonthlyLease) : null,
+        tenant_pays_utilities: values.tenantPaysUtilities,
+        tenant_pays_taxes: values.tenantPaysTaxes,
+        tenant_pays_insurance: values.tenantPaysInsurance,
 
         // Document Information - Convert arrays to counts and concatenated names
         pnl_documents_count: values.pnlDocuments?.length || 0,
@@ -875,6 +898,35 @@ const SellYourOffice = () => {
                   <div className="error">{props.errors.canBeTransferred}</div>}
               </div>
             )}
+
+            <div className="form-group">
+              <label>What will the new monthly lease amount be? ($)</label>
+              <Field 
+                name="newMonthlyLease" 
+                type="number" 
+                className="form-control"
+              />
+              {props.errors.newMonthlyLease && props.touched.newMonthlyLease && 
+                <div className="error">{props.errors.newMonthlyLease}</div>}
+            </div>
+
+            <div className="form-group lease-responsibilities">
+              <label className="section-label">Lease Details:</label>
+              <div className="checkbox-group">
+                <label>
+                  <Field type="checkbox" name="tenantPaysUtilities" />
+                  Tenant pays utilities
+                </label>
+                <label>
+                  <Field type="checkbox" name="tenantPaysTaxes" />
+                  Tenant pays property taxes
+                </label>
+                <label>
+                  <Field type="checkbox" name="tenantPaysInsurance" />
+                  Tenant pays insurance
+                </label>
+              </div>
+            </div>
           </div>
         );
 
@@ -928,12 +980,12 @@ const SellYourOffice = () => {
           <div className="form-step">
             <h2>Personal Information</h2>
             <div className="form-group">
-              <label>Who should we contact about this deal? - Required</label>
+              <label>Who should we contact about this deal?*</label>
               <Field name="name" className="form-control" placeholder="Name" />
               {props.errors.name && props.touched.name && <div className="error">{props.errors.name}</div>}
             </div>
             <div className="form-group">
-              <label>What is the best email to reach you? - Required</label>
+              <label>What is the best email to reach you?*</label>
               <Field name="email" type="email" className="form-control" placeholder="Email"/>
               {props.errors.email && props.touched.email && <div className="error">{props.errors.email}</div>}
             </div>
@@ -1131,6 +1183,30 @@ const styles = `
   font-size: 0.875rem;
   color: #666;
   margin-bottom: 0.5rem;
+}
+
+.lease-responsibilities {
+  margin-top: 1.5rem;
+}
+
+.lease-responsibilities .section-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-left: 1rem;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
 }
 `;
 

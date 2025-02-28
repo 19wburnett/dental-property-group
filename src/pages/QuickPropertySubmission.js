@@ -12,14 +12,6 @@ const supabase = createClient(
 );
 
 const validationSchema = Yup.object({
-  leaseDocuments: Yup.array()
-    .min(1, 'At least one lease document is required')
-    .nullable()
-    .default([]),
-  otherDocuments: Yup.array()
-    .max(5, 'Maximum 5 files allowed')
-    .nullable()
-    .default([]),
   mortgageOwed: Yup.number()
     .min(0, 'Must be 0 or greater')
     .required('Required'),
@@ -37,6 +29,30 @@ const validationSchema = Yup.object({
   monthlyRent: Yup.number()
     .min(0, 'Must be 0 or greater')
     .required('Required'),
+  paysUtilities: Yup.boolean(),
+  monthlyUtilities: Yup.number().when('paysUtilities', {
+    is: true,
+    then: () => Yup.number()
+      .min(0, 'Must be 0 or greater')
+      .required('Required'),
+    otherwise: () => Yup.number().notRequired(),
+  }),
+  paysTaxes: Yup.boolean(),
+  annualTaxes: Yup.number().when('paysTaxes', {
+    is: true,
+    then: () => Yup.number()
+      .min(0, 'Must be 0 or greater')
+      .required('Required'),
+    otherwise: () => Yup.number().notRequired(),
+  }),
+  paysInsurance: Yup.boolean(),
+  annualInsurance: Yup.number().when('paysInsurance', {
+    is: true,
+    then: () => Yup.number()
+      .min(0, 'Must be 0 or greater')
+      .required('Required'),
+    otherwise: () => Yup.number().notRequired(),
+  }),
 });
 
 const QuickPropertySubmission = () => {
@@ -48,8 +64,6 @@ const QuickPropertySubmission = () => {
   const navigate = useNavigate();
 
   const initialValues = {
-    leaseDocuments: [],
-    otherDocuments: [],
     mortgageOwed: '',
     isAssumable: false,
     askingPrice: '',
@@ -58,6 +72,12 @@ const QuickPropertySubmission = () => {
     state: '',
     zipCode: '',
     monthlyRent: '',
+    paysUtilities: false,
+    monthlyUtilities: '',
+    paysTaxes: false,
+    annualTaxes: '',
+    paysInsurance: false,
+    annualInsurance: '',
   };
 
   // US States array for the dropdown
@@ -238,23 +258,42 @@ const QuickPropertySubmission = () => {
     }
   };
 
-  const calculateReturnPercentage = (rentAmount, leaseType, askingPrice) => {
+  const calculateReturnPercentage = (rentAmount, leaseType, askingPrice, values) => {
     if (!rentAmount || !askingPrice || askingPrice === 0) return 0;
     
     // Convert monthly rent to annual
     const annualRent = rentAmount * 12;
     
-    // Apply adjustment based on lease type
-    const adjustmentMultiplier = leaseType === 'triple_net' ? 0.9 : 0.7;
-    const adjustedAnnualRent = annualRent * adjustmentMultiplier;
+    // Count how many operating expenses the tenant pays
+    const expensesCount = [
+      values.paysUtilities,
+      values.paysTaxes,
+      values.paysInsurance
+    ].filter(Boolean).length;
     
-    // Calculate return percentage
+    // Determine multiplier based on number of expenses tenant pays
+    let adjustmentMultiplier;
+    switch (expensesCount) {
+      case 1:
+        adjustmentMultiplier = 0.9;
+        break;
+      case 2:
+        adjustmentMultiplier = 0.8;
+        break;
+      case 3:
+        adjustmentMultiplier = 0.7;
+        break;
+      default:
+        adjustmentMultiplier = 1.0; // No expenses paid by tenant
+    }
+    
+    const adjustedAnnualRent = annualRent * adjustmentMultiplier;
     const returnPercentage = (adjustedAnnualRent / askingPrice) * 100;
     
     console.log('Return calculation:', {
       monthlyRent: rentAmount,
       annualRent,
-      leaseType,
+      expensesCount,
       adjustmentMultiplier,
       adjustedAnnualRent,
       askingPrice,
@@ -269,12 +308,7 @@ const QuickPropertySubmission = () => {
     setProcessingStatus('Submitting your property information...');
     
     try {
-      // Ensure leaseDocuments is not empty
-      if (values.leaseDocuments.length === 0) {
-        throw new Error('No lease document provided');
-      }
 
-      // Create base submission first
       const baseSubmission = {
         street_address: values.streetAddress,
         mortgage_owed: Number(values.mortgageOwed),
@@ -288,6 +322,12 @@ const QuickPropertySubmission = () => {
         city: values.city,
         state: values.state,
         zip_code: values.zipCode,
+        pays_utilities: values.paysUtilities,
+        monthly_utilities: values.paysUtilities ? Number(values.monthlyUtilities) : null,
+        pays_taxes: values.paysTaxes,
+        annual_taxes: values.paysTaxes ? Number(values.annualTaxes) : null,
+        pays_insurance: values.paysInsurance,
+        annual_insurance: values.paysInsurance ? Number(values.annualInsurance) : null,
       };
 
       const { data: submissionData, error: submissionError } = await supabase
@@ -303,12 +343,16 @@ const QuickPropertySubmission = () => {
 
       setSubmissionId(submissionData[0].id);
 
-      // Calculate cap rate using input monthly rent
+      // Calculate cap rate using input monthly rent and operating expenses
       const annualRent = Number(values.monthlyRent) * 12;
       const askingPrice = Number(values.askingPrice);
       
-      // Default to non-triple net calculation
-      const capRate = (annualRent * 0.7) / askingPrice * 100;
+      const capRate = calculateReturnPercentage(
+        Number(values.monthlyRent),
+        'standard',
+        askingPrice,
+        values
+      );
 
       // Check if cap rate meets criteria
       if (capRate < 9) {
@@ -345,7 +389,7 @@ const QuickPropertySubmission = () => {
             {(formikProps) => {
               console.log('Formik props:', formikProps); // Debugging line
               return (
-                <Form className="quick-form">
+                <Form className="quick-form" style={{ width: '100%', maxWidth: '800px' }}>
                   <div className="form-group">
                     <label>Street Address *</label>
                     <Field
@@ -392,17 +436,6 @@ const QuickPropertySubmission = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>Lease Agreements and Other Docs *</label>
-                    <div className="form-hint">Upload all current lease agreements, including any options and amendments, and any other documents</div>
-                    <FileUploadBox
-                      fieldName="leaseDocuments"
-                      acceptedTypes=".pdf,.doc,.docx"
-                      onFileSelect={(files) => formikProps.setFieldValue("leaseDocuments", files)}
-                      formik={formikProps}
-                    />
-                  </div>
-
-                  <div className="form-group">
                     <label>Amount Owed on Mortgage ($) *</label>
                     <Field
                       name="mortgageOwed"
@@ -427,8 +460,14 @@ const QuickPropertySubmission = () => {
                     <Field
                       name="anticipatedRepairs"
                       as="textarea"
-                      className="form-control"
+                      className="form-control text-input" // Add text-input class
                       placeholder="Describe any major interior or exterior repairs or maintenance projects"
+                      style={{
+                        fontFamily: 'inherit', // This will inherit the font from parent elements
+                        fontSize: '1rem',      // Match the size of other inputs
+                        lineHeight: '1.5',     // Standard line height
+                        padding: '0.75rem'     // Consistent padding
+                      }}
                     />
                     {formikProps.errors.anticipatedRepairs && formikProps.touched.anticipatedRepairs && 
                       <div className="error">{formikProps.errors.anticipatedRepairs}</div>}
@@ -459,6 +498,73 @@ const QuickPropertySubmission = () => {
                     />
                     {formikProps.errors.monthlyRent && formikProps.touched.monthlyRent && 
                       <div className="error">{formikProps.errors.monthlyRent}</div>}
+                  </div>
+
+                  <div className="expenses-section">
+                    <h3>Operating Expenses</h3>
+                    
+                    <div className="form-group">
+                      <label>
+                        <Field type="checkbox" name="paysUtilities" />
+                        Does the tenant pay utilities?
+                      </label>
+                      {formikProps.values.paysUtilities && (
+                        <div className="nested-field">
+                          <label>Monthly Utilities Cost ($)</label>
+                          <Field
+                            name="monthlyUtilities"
+                            type="number"
+                            className="form-control"
+                            style={{maxWidth: '300px'}}
+                            placeholder="Enter monthly utilities cost"
+                          />
+                          {formikProps.errors.monthlyUtilities && formikProps.touched.monthlyUtilities && 
+                            <div className="error">{formikProps.errors.monthlyUtilities}</div>}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label>
+                        <Field type="checkbox" name="paysTaxes" />
+                        Does the tenant pay property taxes?
+                      </label>
+                      {formikProps.values.paysTaxes && (
+                        <div className="nested-field">
+                          <label>Annual Property Taxes ($)</label>
+                          <Field
+                            name="annualTaxes"
+                            type="number"
+                            className="form-control"
+                            style={{maxWidth: '300px'}}
+                            placeholder="Enter annual property taxes"
+                          />
+                          {formikProps.errors.annualTaxes && formikProps.touched.annualTaxes && 
+                            <div className="error">{formikProps.errors.annualTaxes}</div>}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <label>
+                        <Field type="checkbox" name="paysInsurance" />
+                        Does the tenant pay property insurance?
+                      </label>
+                      {formikProps.values.paysInsurance && (
+                        <div className="nested-field">
+                          <label>Annual Insurance Cost ($)</label>
+                          <Field
+                            name="annualInsurance"
+                            type="number"
+                            className="form-control"
+                            style={{maxWidth: '300px'}}
+                            placeholder="Enter annual insurance cost"
+                          />
+                          {formikProps.errors.annualInsurance && formikProps.touched.annualInsurance && 
+                            <div className="error">{formikProps.errors.annualInsurance}</div>}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="form-actions" style={{marginBottom:'20px'}}>
@@ -545,6 +651,23 @@ const styles = `
   height: 50px;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
+}
+
+.expenses-section {
+  margin: 2rem 0;
+  padding: 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  width: 100%;
+}
+
+.expenses-section h3 {
+  margin-bottom: 1rem;
+}
+
+.nested-field {
+  margin-left: 1.5rem;
+  margin-top: 0.5rem;
 }
 `;
 
