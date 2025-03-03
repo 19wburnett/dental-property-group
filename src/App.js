@@ -26,6 +26,8 @@ function App() {
           <Route path="/sell" element={<PropertySubmissionPage />} />
           <Route path="/success" element={<SuccessPage />} />
           <Route path="/contact-us" element={<ContactUsPage />} />
+          <Route path="/contact" element={<ContactUsPage />} />
+          <Route path="/contact/:propertyId" element={<ContactUsPage />} />
         </Routes>
         <Footer />
       </div>
