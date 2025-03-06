@@ -531,9 +531,11 @@ body {
 }
 
 .sell-office-container {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 2rem auto;
   padding: 2rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .form-step {
@@ -654,10 +656,6 @@ body {
   }
 }
 
-.progress-bar-container {
-  margin-bottom: 2rem;
-  padding: 0 1rem;
-}
 
 .progress-steps {
   display: flex;

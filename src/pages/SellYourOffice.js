@@ -19,12 +19,7 @@ const validationSchema = Yup.object({
 
   // Property Details (Required)
   
-  streetAddress: Yup.string().required('Required'),
-  city: Yup.string().required('Required'),
-  state: Yup.string().required('Required'),
-  zipCode: Yup.string()
-    .matches(/^[0-9]{5}(-[0-9]{4})?$/, 'Invalid ZIP code')
-    .required('Required'),
+  fullAddress: Yup.string().required('Address is required'),
   
   // Property Details (Optional)
   propertySize: Yup.number().nullable(),
@@ -60,28 +55,11 @@ const validationSchema = Yup.object({
 
   // Financial Details (All Optional)
   practiceName: Yup.string().nullable(),
-  askingPrice: Yup.number().nullable(),
   numberOfTenants: Yup.number()
     .min(0, 'Must be 0 or greater')
     .nullable(),
-  mortgageOwed: Yup.number()
-    .min(0, 'Must be 0 or greater')
-    .nullable(),
-  isAssumable: Yup.boolean(),
-  canBeTransferred: Yup.boolean()
-    .when(['isAssumable'], {
-      is: true,
-      then: () => Yup.boolean(),
-      otherwise: () => Yup.boolean().nullable()
-    }),
 
   // Add new lease-related validations
-  newMonthlyLease: Yup.number()
-    .nullable()
-    .transform((value, originalValue) => 
-      originalValue === '' ? null : value
-    )
-    .min(0, 'Must be 0 or greater'),
   tenantPaysUtilities: Yup.boolean(),
   tenantPaysTaxes: Yup.boolean(),
   tenantPaysInsurance: Yup.boolean(),
@@ -103,6 +81,9 @@ const validationSchema = Yup.object({
 
   // Add mortgage statement file validation
   mortgageStatement: Yup.array().nullable().default([]),
+
+  // Add notes field validation
+  notes: Yup.string().nullable(),
 });
 
 const SellYourOffice = () => {
@@ -111,17 +92,21 @@ const SellYourOffice = () => {
 
   const initialValues = {
     // Property Details
-    streetAddress: '',
-    city: '',
-    state: '',
-    zipCode: '',
+    fullAddress: '',  // New consolidated address field
     propertySize: '',
     
     // Building Information
     yearBuilt: '',
     hasBeenRenovated: false,
     renovationYear: '',
-    additionalFees: [], // Change to array for multiple fees
+    commonFees: {
+      propertymanagement: { applicable: false, amount: '' },
+      hoa: { applicable: false, amount: '' },
+      servicecontract: { applicable: false, amount: '' },
+      utilities: { applicable: false, amount: '' },
+      insurance: { applicable: false, amount: '' }
+    },
+    additionalFees: [], // For custom fees
     buildingType: '',
 
     // Repairs & Maintenance
@@ -135,7 +120,8 @@ const SellYourOffice = () => {
       parkinglot: { done: false, year: '', cost: '' },
       landscaping: { done: false, year: '', cost: '' },
       foundation: { done: false, year: '', cost: '' },
-      othercapex: { done: false, year: '', cost: '' }
+      // Change othercapex from single item to array
+      otherCapexItems: []
     },
 
     // Future Repairs
@@ -149,19 +135,15 @@ const SellYourOffice = () => {
       parkinglot: { needed: false, yearsUntilNeeded: '' },
       landscaping: { needed: false, yearsUntilNeeded: '' },
       foundation: { needed: false, yearsUntilNeeded: '' },
-      othercapex: { needed: false, yearsUntilNeeded: '' }
+      // Change othercapex from single item to array
+      otherCapexItems: []
     },
 
     // Financial Details
     practiceName: '',
-    askingPrice: '',
     numberOfTenants: '',
-    mortgageOwed: '',
-    isAssumable: false,
-    canBeTransferred: false,
 
     // Add new lease-related fields
-    newMonthlyLease: '',
     tenantPaysUtilities: false,
     tenantPaysTaxes: false,
     tenantPaysInsurance: false,
@@ -181,6 +163,9 @@ const SellYourOffice = () => {
 
     // Add mortgage statement file field
     mortgageStatement: [],
+
+    // Add notes field
+    notes: '',
   };
 
   // US States array for the dropdown
@@ -281,10 +266,7 @@ const SellYourOffice = () => {
         phone: values.phone,
 
         // Property Details
-        street_address: values.streetAddress,
-        city: values.city,
-        state: values.state,
-        zip_code: values.zipCode,
+        address: values.fullAddress,  // Use consolidated address field
         property_size: values.propertySize ? Number(values.propertySize) : null,
 
         // Building Information
@@ -301,31 +283,70 @@ const SellYourOffice = () => {
           [`fee_amount_${index + 1}`]: fee.amount
         }), {}),
 
-        // Past Repairs & Maintenance - Flatten into individual fields
-        ...Object.entries(values.repairs).reduce((acc, [key, value]) => ({
+        // Flatten common fees into separate columns
+        ...Object.entries(values.commonFees).reduce((acc, [key, value]) => ({
           ...acc,
-          [`repair_${key}_done`]: value.done,
-          [`repair_${key}_year`]: value.done ? value.year : null,
-          [`repair_${key}_cost`]: value.done ? value.cost : null
+          [`fee_${key}_applicable`]: value.applicable,
+          [`fee_${key}_amount`]: value.applicable ? Number(value.amount) : null
         }), {}),
 
+        // Past Repairs & Maintenance - Flatten into individual fields
+        ...Object.entries(values.repairs).reduce((acc, [key, value]) => {
+          if (key !== 'otherCapexItems') {
+            return {
+              ...acc,
+              [`repair_${key}_done`]: value.done,
+              [`repair_${key}_year`]: value.done ? value.year : null,
+              [`repair_${key}_cost`]: value.done ? value.cost : null
+            };
+          }
+          return acc;
+        }, {}),
+
+        // Add other capex items for past repairs
+        ...values.repairs.otherCapexItems.reduce((acc, item, index) => {
+          if (index < 5) { // Limit to 5 items as defined in the database
+            return {
+              ...acc,
+              [`repair_othercapexitems_${index}_done`]: item.done,
+              [`repair_othercapexitems_${index}_type`]: item.type,
+              [`repair_othercapexitems_${index}_year`]: item.done ? item.year : null,
+              [`repair_othercapexitems_${index}_cost`]: item.done ? item.cost : null
+            };
+          }
+          return acc;
+        }, {}),
+
         // Future Repairs - Flatten into individual fields
-        ...Object.entries(values.futureRepairs).reduce((acc, [key, value]) => ({
-          ...acc,
-          [`future_repair_${key}_needed`]: value.needed,
-          [`future_repair_${key}_years_until_needed`]: value.needed ? value.yearsUntilNeeded : null
-        }), {}),
+        ...Object.entries(values.futureRepairs).reduce((acc, [key, value]) => {
+          if (key !== 'otherCapexItems') {
+            return {
+              ...acc,
+              [`future_repair_${key}_needed`]: value.needed,
+              [`future_repair_${key}_years_until_needed`]: value.needed ? value.yearsUntilNeeded : null
+            };
+          }
+          return acc;
+        }, {}),
+
+        // Add other capex items for future repairs
+        ...values.futureRepairs.otherCapexItems.reduce((acc, item, index) => {
+          if (index < 5) { // Limit to 5 items as defined in the database
+            return {
+              ...acc,
+              [`future_repair_othercapexitems_${index}_needed`]: item.needed,
+              [`future_repair_othercapexitems_${index}_type`]: item.type,
+              [`future_repair_othercapexitems_${index}_years_until_needed`]: item.needed ? item.yearsUntilNeeded : null
+            };
+          }
+          return acc;
+        }, {}),
 
         // Financial Details
         practice_name: values.practiceName,
-        asking_price: values.askingPrice ? Number(values.askingPrice) : null,
         number_of_tenants: values.numberOfTenants ? Number(values.numberOfTenants) : null,
-        mortgage_owed: values.mortgageOwed ? Number(values.mortgageOwed) : null,
-        is_assumable: values.isAssumable,
-        can_be_transferred: values.isAssumable ? values.canBeTransferred : null,
 
         // Add new lease-related fields
-        new_monthly_lease: values.newMonthlyLease ? Number(values.newMonthlyLease) : null,
         tenant_pays_utilities: values.tenantPaysUtilities,
         tenant_pays_taxes: values.tenantPaysTaxes,
         tenant_pays_insurance: values.tenantPaysInsurance,
@@ -340,16 +361,16 @@ const SellYourOffice = () => {
         lease_documents_count: values.leaseAgreement?.length || 0,
         lease_documents_names: values.leaseAgreement?.map(f => f.name).join('; ') || '',
         
-        mortgage_documents_count: values.mortgageStatement?.length || 0,
-        mortgage_documents_names: values.mortgageStatement?.map(f => f.name).join('; ') || '',
-        
         other_documents_count: values.otherDocuments?.length || 0,
         other_documents_names: values.otherDocuments?.map(f => f.name).join('; ') || '',
 
         // Metadata
         created_at: new Date().toISOString(),
         status: 'new',
-        submission_source: 'web_form'
+        submission_source: 'web_form',
+
+        // Include notes in submission
+        notes: values.notes,
       };
 
       // Insert into Supabase
@@ -382,6 +403,7 @@ const SellYourOffice = () => {
                 const fileName = `${type}_${timestamp}_${safeFileName}`;
                 const filePath = `${submissionId}/${type}/${fileName}`;
 
+                // Fix the storage upload syntax error
                 const { error: uploadError } = await supabase.storage
                   .from('property-documents')
                   .upload(filePath, file);
@@ -391,6 +413,12 @@ const SellYourOffice = () => {
                   continue;
                 }
 
+                // Get the public URL for the uploaded file
+                const { data: publicUrlData } = supabase.storage
+                  .from('property-documents')
+                  .getPublicUrl(filePath);
+
+                // Then, create a record in the property_files table
                 const fileRecord = {
                   submission_id: submissionId,
                   file_name: file.name,
@@ -399,16 +427,24 @@ const SellYourOffice = () => {
                   file_size: file.size,
                   mime_type: file.type,
                   display_name: label,
+                  public_url: publicUrlData?.publicUrl || null,
                   status: 'uploaded',
-                  uploaded_at: new Date().toISOString()
+                  uploaded_at: new Date().toISOString(),
+                  submission_type: 'property_sale', // Add this missing field
                 };
 
-                const { error: fileRecordError } = await supabase
+                console.log('Attempting to insert file record:', fileRecord);
+
+                // Add debug logging for the insert operation
+                const { data: fileData, error: fileRecordError } = await supabase
                   .from('property_files')
-                  .insert([fileRecord]);
+                  .insert([fileRecord])
+                  .select();
 
                 if (fileRecordError) {
                   console.error(`Error recording file metadata for ${file.name}:`, fileRecordError);
+                } else {
+                  console.log('Successfully inserted file record:', fileData);
                 }
               } catch (fileError) {
                 console.error(`Error processing file ${file.name}:`, fileError);
@@ -446,13 +482,13 @@ const SellYourOffice = () => {
   };
 
   const steps = [
-    { number: 1, label: 'Property Details' },
-    { number: 2, label: 'Building Info' },
-    { number: 3, label: 'Past Repairs' },
-    { number: 4, label: 'Future Repairs' },
-    { number: 5, label: 'Financial' },
-    { number: 6, label: 'Documents' },
-    { number: 7, label: 'Personal Info' }
+    { number: 1},
+    { number: 2},
+    { number: 3},
+    { number: 4 },
+    { number: 5 },
+    { number: 6 },
+    { number: 7 }
   ];
 
   const ProgressBar = () => {
@@ -564,7 +600,7 @@ const SellYourOffice = () => {
                   <span className="file-name">{file.name}</span>
                   <button 
                     type="button" 
-                    className="remove-file"
+                    className="remove-file" 
                     onClick={(e) => handleRemoveFile(index, e)}
                   >
                     ✕
@@ -591,41 +627,24 @@ const SellYourOffice = () => {
       case 1: // Property Details
         return (
           <div className="form-step">
-            <h2>Property Details</h2>
+            <h2>I'm going to be asking you a few questions about your property</h2>
+            <p>We do this in order to get you an offer. It shouldn't take longer than 30 minutes</p>
             <div className="form-group">
-              <label>Street Address - Required</label>
-              <Field name="streetAddress" className="form-control" />
-              {props.errors.streetAddress && props.touched.streetAddress && 
-                <div className="error">{props.errors.streetAddress}</div>}
-            </div>
-            <div className="form-group">
-              <label>City - Required</label>
-              <Field name="city" className="form-control" />
-              {props.errors.city && props.touched.city && 
-                <div className="error">{props.errors.city}</div>}
-            </div>
-            <div className="form-row">
-              <div className="form-group state-select">
-                <label>State - Required</label>
-                <Field name="state" as="select" className="form-control">
-                  {states.map(state => (
-                    <option key={state.value} value={state.value}>
-                      {state.label}
-                    </option>
-                  ))}
-                </Field>
-                {props.errors.state && props.touched.state && 
-                  <div className="error">{props.errors.state}</div>}
-              </div>
-              <div className="form-group zip-code">
-                <label>ZIP Code - Required</label>
-                <Field name="zipCode" className="form-control" />
-                {props.errors.zipCode && props.touched.zipCode && 
-                  <div className="error">{props.errors.zipCode}</div>}
+              <label>What is the address of the property?</label>
+              <Field 
+                name="fullAddress" 
+                className="form-control" 
+                placeholder="Enter the complete address (street, city, state, ZIP)"
+              />
+              {props.errors.fullAddress && props.touched.fullAddress && 
+                <div className="error">{props.errors.fullAddress}</div>}
+              <div className="form-hint">
+                Please enter the full address including street, city, state and ZIP code
               </div>
             </div>
+            
             <div className="form-group">
-              <label>Property Size (sq ft)</label>
+              <label>What is the size of the property in square feet?</label>
               <Field name="propertySize" type="number" className="form-control" />
               {props.errors.propertySize && props.touched.propertySize && 
                 <div className="error">{props.errors.propertySize}</div>}
@@ -634,11 +653,28 @@ const SellYourOffice = () => {
         );
 
       case 2: // Building Information
+        const commonFeeItems = [
+          { key: 'propertymanagement', label: 'Property Management Fees', hint: 'If a third party manages the building' },
+          { key: 'hoa', label: 'HOA or Business Park Fees', hint: 'If the office is in a professional complex with shared maintenance costs' },
+          { key: 'servicecontract', label: 'Service Contracts', hint: 'Regular maintenance agreements' },
+          { key: 'utilities', label: 'Common Area Utilities', hint: 'Shared utility costs' },
+          { key: 'insurance', label: 'Building Insurance', hint: 'Monthly insurance premiums' },
+        ];
+
+        // Initialize commonFees if it doesn't exist
+        if (!props.values.commonFees) {
+          const initialCommonFees = {};
+          commonFeeItems.forEach(item => {
+            initialCommonFees[item.key] = { applicable: false, amount: '' };
+          });
+          props.setFieldValue('commonFees', initialCommonFees);
+        }
+
         return (
           <div className="form-step">
-            <h2>Building Information</h2>
+            <h2>Now I'm going to ask a few questions about the building</h2>
             <div className="form-group">
-              <label>Property Type</label>
+              <label>Is the property a condominium or is it a whole building?</label>
               <Field name="buildingType" as="select" className="form-control">
                 <option value="">Select Property Type</option>
                 <option value="condo">Condominium</option>
@@ -649,7 +685,7 @@ const SellYourOffice = () => {
             </div>
             
             <div className="form-group">
-              <label>Year Built</label>
+              <label>What year was the building built?</label>
               <Field name="yearBuilt" type="number" className="form-control" />
               {props.errors.yearBuilt && props.touched.yearBuilt && 
                 <div className="error">{props.errors.yearBuilt}</div>}
@@ -664,27 +700,63 @@ const SellYourOffice = () => {
 
             {props.values.hasBeenRenovated && (
               <div className="form-group">
-                <label>Year of Last Renovation</label>
+                <label>When was the last time it was rennovated?</label>
                 <Field name="renovationYear" type="number" className="form-control" />
                 {props.errors.renovationYear && props.touched.renovationYear && 
                   <div className="error">{props.errors.renovationYear}</div>}
               </div>
             )}
 
+            {/* Common Monthly Fees Section */}
             <div className="form-group">
-              <label>Monthly Fees (COA, Service Contract, Property Management, etc.)</label>
+              <h3>Do you have any of the following monthly fees?</h3>
+              <div className="common-fees-container">
+                {commonFeeItems.map(({ key, label, hint }) => {
+                  // Ensure the fee object exists for this key
+                  if (!props.values.commonFees[key]) {
+                    props.setFieldValue(`commonFees.${key}`, { applicable: false, amount: '' });
+                  }
+                  return (
+                    <div key={key} className="fee-item">
+                      <label>
+                        <Field
+                          type="checkbox"
+                          name={`commonFees.${key}.applicable`}
+                        />
+                        {label}
+                      </label>
+                      <div className="fee-hint">{hint}</div>
+                      {props.values.commonFees && props.values.commonFees[key]?.applicable && (
+                        <div className="fee-amount-input">
+                          <Field
+                            name={`commonFees.${key}.amount`}
+                            type="number"
+                            placeholder="How much monthly?"
+                            className="form-control"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Additional Custom Fees */}
+            <div className="form-group">
+              <h4>Are there any other monthly fees that I didn't mention?</h4>
               <div className="fees-container">
                 {props.values.additionalFees.map((fee, index) => (
                   <div key={index} className="fee-row">
                     <Field
                       name={`additionalFees.${index}.feeType`}
-                      placeholder="Fee Type (e.g., COA, Service Contract)"
+                      placeholder="Fee Type"
                       className="form-control fee-type"
                     />
                     <Field
                       name={`additionalFees.${index}.amount`}
                       type="number"
-                      placeholder="Amount"
+                      placeholder="Amount ($)"
                       className="form-control fee-amount"
                     />
                     <button
@@ -710,7 +782,7 @@ const SellYourOffice = () => {
                   }}
                   className="btn-add"
                 >
-                  + Add Fee
+                  + Add Custom Fee
                 </button>
               </div>
             </div>
@@ -719,29 +791,28 @@ const SellYourOffice = () => {
 
       case 3: // Repairs & Maintenance
         const repairItems = [
-          { key: 'roof', label: 'Roof' },
-          { key: 'siding', label: 'Siding' },
-          { key: 'windowsanddoors', label: 'Windows and Doors' },
-          { key: 'hvac', label: 'HVAC' },
-          { key: 'signage', label: 'Signage' },
-          { key: 'walkways', label: 'Walkways' },
-          { key: 'parkinglot', label: 'Parking Lot' },
-          { key: 'landscaping', label: 'Landscaping' },
-          { key: 'foundation', label: 'Foundation' },
-          { key: 'othercapex', label: 'Other Capex' }
+          { key: 'roof', label: 'When was the last time the roof was repaired?' },
+          { key: 'siding', label: 'When was the last time siding was done?' },
+          { key: 'windowsanddoors', label: 'When was the last time windows and doors were repaired?' },
+          { key: 'hvac', label: 'When was the last time the HVAC was repaired?' },
+          { key: 'signage', label: 'When was the last time signage was repaired?' },
+          { key: 'walkways', label: 'When was the last time the walkways were repaired?' },
+          { key: 'parkinglot', label: 'When was the last time the parking lot was repaired?' },
+          { key: 'landscaping', label: 'When was the last time the landscaping was done?' },
+          { key: 'foundation', label: 'When was the last time the foundation was repaired?' },
+          // Removed othercapex from here as it will be handled separately
         ];
 
         return (
           <div className="form-step">
-            <h2>Repairs & Maintenance History</h2>
-            <p>What repairs and maintenance has been done in the past?</p>
+            <h2>Now let's talk about repairs and maintenance that you have done on the property</h2>
+            <p>If you can't remember exact dates and numbers, no worries, just put your best guess.</p>
             <div className="form-group repairs-grid">
               {repairItems.map(({ key, label }) => {
                 // Ensure the repair object exists for this key
                 if (!props.values.repairs[key]) {
                   props.setFieldValue(`repairs.${key}`, { done: false, year: '', cost: '' });
                 }
-                
                 return (
                   <div key={key} className="repair-item">
                     <label>
@@ -771,6 +842,79 @@ const SellYourOffice = () => {
                 );
               })}
             </div>
+            
+            {/* Other Capex section with ability to add multiple items */}
+            <div className="form-group other-capex-section">
+              <h3>Is there any other maintenance that we should know about?</h3>
+              {props.values.repairs.otherCapexItems && props.values.repairs.otherCapexItems.length > 0 ? (
+                props.values.repairs.otherCapexItems.map((item, index) => (
+                  <div key={index} className="other-capex-item">
+                    <div className="other-capex-header">
+                      <label>
+                        <Field
+                          type="checkbox"
+                          name={`repairs.otherCapexItems.${index}.done`}
+                          checked={item.done}
+                          onChange={(e) => {
+                            const updatedItems = [...props.values.repairs.otherCapexItems];
+                            updatedItems[index].done = e.target.checked;
+                            props.setFieldValue('repairs.otherCapexItems', updatedItems);
+                          }}
+                        />
+                        Other Capital Expenditure
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updatedItems = [...props.values.repairs.otherCapexItems];
+                          updatedItems.splice(index, 1);
+                          props.setFieldValue('repairs.otherCapexItems', updatedItems);
+                        }}
+                        className="btn-remove capex-remove"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {item.done && (
+                      <div className="other-capex-details" style={{gap:'20px', display:'flex'}}>
+                        <Field
+                          name={`repairs.otherCapexItems.${index}.type`}
+                          placeholder="Type of Capital Expenditure"
+                          className="form-control"
+                        />
+                        <Field
+                          name={`repairs.otherCapexItems.${index}.year`}
+                          type="number"
+                          placeholder="Year"
+                          className="form-control"
+                        />
+                        <Field
+                          name={`repairs.otherCapexItems.${index}.cost`}
+                          type="number"
+                          placeholder="Cost ($)"
+                          className="form-control"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p>No other capital expenditures added yet.</p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const currentItems = props.values.repairs.otherCapexItems || [];
+                  props.setFieldValue('repairs.otherCapexItems', [
+                    ...currentItems,
+                    { done: true, type: '', year: '', cost: '' }
+                  ]);
+                }}
+                className="btn-add capex-add"
+              >
+                + Add Other Capital Expenditure
+              </button>
+            </div>
           </div>
         );
 
@@ -785,20 +929,19 @@ const SellYourOffice = () => {
           { key: 'parkinglot', label: 'Parking Lot' },
           { key: 'landscaping', label: 'Landscaping' },
           { key: 'foundation', label: 'Foundation' },
-          { key: 'othercapex', label: 'Other Capex' }
+          // Removed othercapex from here as it will be handled separately
         ];
 
         return (
           <div className="form-step">
-            <h2>Future Repairs</h2>
-            <p>What repairs and maintenance should we plan for in the next 5 years?</p>
+            <h2>Now lets talk about future repairs</h2>
+            <p>Out of all those items we just went through, what repairs should be planned for in the next 5 years. I’ll go through them 1 by 1. </p>
             <div className="form-group repairs-grid">
               {futureRepairItems.map(({ key, label }) => {
                 // Ensure the future repair object exists for this key
                 if (!props.values.futureRepairs[key]) {
                   props.setFieldValue(`futureRepairs.${key}`, { needed: false, yearsUntilNeeded: '' });
                 }
-                
                 return (
                   <div key={key} className="repair-item">
                     <label>
@@ -822,108 +965,108 @@ const SellYourOffice = () => {
                 );
               })}
             </div>
+
+            {/* Other Capex section with ability to add multiple items */}
+            <div className="form-group other-capex-section">
+              <h3>Other Future Capital Expenditures</h3>
+              {props.values.futureRepairs.otherCapexItems && props.values.futureRepairs.otherCapexItems.length > 0 ? (
+                props.values.futureRepairs.otherCapexItems.map((item, index) => (
+                  <div key={index} className="other-capex-item">
+                    <div className="other-capex-header">
+                      <label>
+                        <Field
+                          type="checkbox"
+                          name={`futureRepairs.otherCapexItems.${index}.needed`}
+                          checked={item.needed}
+                          onChange={(e) => {
+                            const updatedItems = [...props.values.futureRepairs.otherCapexItems];
+                            updatedItems[index].needed = e.target.checked;
+                            props.setFieldValue('futureRepairs.otherCapexItems', updatedItems);
+                          }}
+                        />
+                        Other Future Capital Expenditure
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updatedItems = [...props.values.futureRepairs.otherCapexItems];
+                          updatedItems.splice(index, 1);
+                          props.setFieldValue('futureRepairs.otherCapexItems', updatedItems);
+                        }}
+                        className="btn-remove capex-remove"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {item.needed && (
+                      <div className="other-capex-details">
+                        <Field
+                          name={`futureRepairs.otherCapexItems.${index}.type`}
+                          placeholder="Type of Capital Expenditure"
+                          className="form-control"
+                        />
+                        <Field
+                          name={`futureRepairs.otherCapexItems.${index}.yearsUntilNeeded`}
+                          type="number"
+                          placeholder="Years until needed"
+                          className="form-control"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p>No other future capital expenditures added yet.</p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const currentItems = props.values.futureRepairs.otherCapexItems || [];
+                  props.setFieldValue('futureRepairs.otherCapexItems', [
+                    ...currentItems,
+                    { needed: true, type: '', yearsUntilNeeded: '' }
+                  ]);
+                }}
+                className="btn-add capex-add"
+              >
+                + Add Other Future Capital Expenditure
+              </button>
+            </div>
           </div>
         );
 
       case 5: // Financial Details
         return (
           <div className="form-step">
-            <h2>Financial Details</h2>
+            <h2>Let's talk about a few more important details and then we will be done</h2>
             <div className="form-group">
-              <label>Practice Name</label>
+              <label>What is the legal name of the practice?</label>
               <Field name="practiceName" className="form-control" />
               {props.errors.practiceName && props.touched.practiceName && 
                 <div className="error">{props.errors.practiceName}</div>}
             </div>
-            <div className="form-group">
-              <label>Asking Price ($)</label>
-              <Field name="askingPrice" type="number" className="form-control" />
-              {props.errors.askingPrice && props.touched.askingPrice && 
-                <div className="error">{props.errors.askingPrice}</div>}
-            </div>
 
             <div className="form-group">
-              <label>Number of Tenants</label>
+              <label>How many tenants are there in the building that you own?</label>
               <Field name="numberOfTenants" type="number" className="form-control" />
               {props.errors.numberOfTenants && props.touched.numberOfTenants && 
                 <div className="error">{props.errors.numberOfTenants}</div>}
             </div>
-            <div className="form-group">
-              <label>Amount Owed on Mortgage ($)</label>
-              <Field 
-                name="mortgageOwed" 
-                type="number" 
-                className="form-control"
-                onChange={(e) => {
-                  props.setFieldValue('mortgageOwed', e.target.value);
-                  // Clear mortgage statement if mortgage owed is set to 0 or empty
-                  if (!e.target.value || e.target.value === '0') {
-                    props.setFieldValue('mortgageStatement', []);
-                  }
-                }}
-              />
-              {props.errors.mortgageOwed && props.touched.mortgageOwed && 
-                <div className="error">{props.errors.mortgageOwed}</div>}
-            </div>
-
-            {/* Show mortgage statement upload if mortgage owed is greater than 0 */}
-            {props.values.mortgageOwed > 0 && (
-              <div className="form-group">
-                <label>Most Recent Mortgage Statement</label>
-                <div className="form-hint">Please upload your most recent mortgage statement</div>
-                <FileUploadBox
-                  fieldName="mortgageStatement"
-                  acceptedTypes=".pdf,.doc,.docx"
-                  onFileSelect={(files) => props.setFieldValue("mortgageStatement", files)}
-                  formik={props}
-                />
-              </div>
-            )}
-
-            <div className="form-group">
-              <label>
-                <Field type="checkbox" name="isAssumable" />
-                Is the mortgage assumable?
-              </label>
-              {props.errors.isAssumable && props.touched.isAssumable && 
-                <div className="error">{props.errors.isAssumable}</div>}
-            </div>
-            {props.values.isAssumable && (
-              <div className="form-group">
-                <label>
-                  <Field type="checkbox" name="canBeTransferred" />
-                  Could it be transferred to us as part of the deal?
-                </label>
-                {props.errors.canBeTransferred && props.touched.canBeTransferred && 
-                  <div className="error">{props.errors.canBeTransferred}</div>}
-              </div>
-            )}
-
-            <div className="form-group">
-              <label>What will the new monthly lease amount be? ($)</label>
-              <Field 
-                name="newMonthlyLease" 
-                type="number" 
-                className="form-control"
-              />
-              {props.errors.newMonthlyLease && props.touched.newMonthlyLease && 
-                <div className="error">{props.errors.newMonthlyLease}</div>}
-            </div>
 
             <div className="form-group lease-responsibilities">
-              <label className="section-label">Lease Details:</label>
+              <label className="section-label">Of the following expenses, which ones are you paying for?</label>
               <div className="checkbox-group">
                 <label>
                   <Field type="checkbox" name="tenantPaysUtilities" />
-                  Tenant pays utilities
+                  Utilities
                 </label>
                 <label>
                   <Field type="checkbox" name="tenantPaysTaxes" />
-                  Tenant pays property taxes
+                  Property taxes
                 </label>
                 <label>
                   <Field type="checkbox" name="tenantPaysInsurance" />
-                  Tenant pays insurance
+                  Insurance
                 </label>
               </div>
             </div>
@@ -933,7 +1076,8 @@ const SellYourOffice = () => {
       case 6: // Document Upload
         return (
           <div className="form-step">
-            <h2>Document Upload</h2>
+            <h2>Great! Thanks for going through this with me!</h2>
+            <p>If you have any of the following documents, we'd love to get them to get you an offer faster. If not, I'll send a follow up email. But that's it! I'll get this over to our team and get back to you soon.</p>
             <div className="form-group">
               <label>Property P&L and Operating Documents (Last 3 Years)</label>
               <div className="form-hint">Upload financial documents related to the real estate property</div>
@@ -978,9 +1122,9 @@ const SellYourOffice = () => {
       case 7: // Personal Information
         return (
           <div className="form-step">
-            <h2>Personal Information</h2>
+            <h2>DSO Contact Information</h2>
             <div className="form-group">
-              <label>Who should we contact about this deal?*</label>
+              <label>Which DSO contact should we reach out to about this deal?*</label>
               <Field name="name" className="form-control" placeholder="Name" />
               {props.errors.name && props.touched.name && <div className="error">{props.errors.name}</div>}
             </div>
@@ -999,8 +1143,6 @@ const SellYourOffice = () => {
 
   return (
     <div className="sell-office-container">
-      <h1>Sell Your Dental Office</h1>
-      <ProgressBar />
       <Formik
         initialValues={initialValues}
         validationSchema={validationSchema}
@@ -1008,41 +1150,70 @@ const SellYourOffice = () => {
       >
         {(formikProps) => (
           <Form>
-            {renderStep(formikProps)}
-            <div className="form-navigation">
-              {step > 1 && (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setStep(step - 1)}
-                  disabled={formikProps.isSubmitting}
-                >
-                  Previous
-                </button>
-              )}
-              {step < 7 ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => setStep(step + 1)}
-                  disabled={formikProps.isSubmitting}
-                >
-                  Next
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={formikProps.isSubmitting}
-                >
-                  {formikProps.isSubmitting ? 'Submitting...' : 'Submit'}
-                </button>
-              )}
-              {submitStatus && (
-                <div className={`submit-status ${submitStatus.includes('Error') ? 'error' : 'success'}`}>
-                  {submitStatus}
+            <div className="form-layout">
+              {/* Notes section on the left */}
+              <div className="notes-sidebar">
+                <div className="notes-header">Notes</div>
+                <div className="notes-content">
+                  <Field
+                    as="textarea"
+                    name="notes"
+                    placeholder="Add your notes here. These will be saved along with your submission."
+                    className="notes-textarea"
+                  />
+                  <div className="notes-hint">
+                    <p>These notes will be submitted along with your form.</p>
+                    <p>You can use this space to:</p>
+                    <ul>
+                      <li>Add additional context</li>
+                      <li>Provide special instructions</li>
+                      <li>Mention any unique property features</li>
+                      <li>Note any concerns or questions</li>
+                    </ul>
+                  </div>
                 </div>
-              )}
+              </div>
+              
+              {/* Main form content */}
+              <div className="main-form-content">
+                <ProgressBar />
+                {renderStep(formikProps)}
+                <div className="form-navigation">
+                  {step > 1 && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setStep(step - 1)}
+                      disabled={formikProps.isSubmitting}
+                    >
+                      Previous
+                    </button>
+                  )}
+                  {step < 7 ? (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => setStep(step + 1)}
+                      disabled={formikProps.isSubmitting}
+                    >
+                      Next
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={formikProps.isSubmitting}
+                    >
+                      {formikProps.isSubmitting ? 'Submitting...' : 'Submit'}
+                    </button>
+                  )}
+                  {submitStatus && (
+                    <div className={`submit-status ${submitStatus.includes('Error') ? 'error' : 'success'}`}>
+                      {submitStatus}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </Form>
         )}
@@ -1087,15 +1258,61 @@ const styles = `
   font-size: 0.9rem;
 }
 
+/* Other Capex specific styles */
+.other-capex-section {
+  margin-top: 2rem;
+  border-top: 1px solid #ddd;
+  padding-top: 1rem;
+}
+
+.other-capex-item {
+  background-color: #f9f9f9;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.other-capex-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.other-capex-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  padding-left: 1.5rem;
+}
+
+.capex-add {
+  margin-top: 1rem;
+}
+
+.capex-remove {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1.25rem;
+}
+
 /* Mobile responsive styles */
 @media (max-width: 768px) {
   .repair-details {
     grid-template-columns: 1fr;
     gap: 0.5rem;
   }
-
+  
   .repairs-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .other-capex-details {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
   }
 }
 
@@ -1207,6 +1424,170 @@ const styles = `
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
+}
+
+/* Common Fees Styles */
+.common-fees-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 1rem 0;
+  margin-bottom: 1.5rem;
+}
+
+.fee-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.fee-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.fee-hint {
+  font-size: 0.875rem;
+  color: #666;
+  margin-left: 1.5rem;
+}
+
+.fee-amount-input {
+  margin-top: 0.5rem;
+  max-width: 200px;
+}
+
+.fees-container {
+  margin-top: 1rem;
+}
+
+.fee-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.fee-type {
+  flex: 2;
+}
+
+.fee-amount {
+  flex: 1;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .common-fees-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .fee-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .fee-type, .fee-amount {
+    width: 100%;
+  }
+}
+
+/* Form layout with notes sidebar */
+.form-layout {
+  display: flex;
+  gap: 2rem;
+  position: relative;
+}
+
+.notes-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 20px;
+  height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e0e0e0;
+}
+
+.notes-header {
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #f5f5f5;
+}
+
+.notes-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.notes-textarea {
+  width: 100%;
+  height:800px;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.notes-hint {
+  font-size: 0.85rem;
+  color: #666;
+  padding: 0.75rem;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.notes-hint ul {
+  margin-top: 0.5rem;
+  padding-left: 1.5rem;
+}
+
+.notes-hint li {
+  margin-bottom: 0.25rem;
+}
+
+.main-form-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Responsive styles for smaller screens */
+@media (max-width: 992px) {
+  .form-layout {
+    flex-direction: column;
+  }
+  
+  .notes-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 1.5rem;
+  }
+  
+  .notes-textarea {
+    height: 150px;
+  }
 }
 `;
 
