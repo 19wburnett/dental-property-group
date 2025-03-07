@@ -89,6 +89,32 @@ const validationSchema = Yup.object({
 const SellYourOffice = () => {
   const [step, setStep] = useState(1);
   const [submitStatus, setSubmitStatus] = useState('');
+  
+  // Add useEffect to inject styles when component mounts
+  React.useEffect(() => {
+    // Create style element
+    const styleSheet = document.createElement("style");
+    styleSheet.type = "text/css";
+    styleSheet.textContent = styles;
+    styleSheet.id = "sell-office-styles";
+    
+    // Remove any existing style with the same ID to avoid duplicates
+    const existingStyle = document.getElementById("sell-office-styles");
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+    
+    // Append the style to the head
+    document.head.appendChild(styleSheet);
+    
+    // Clean up when component unmounts
+    return () => {
+      const styleToRemove = document.getElementById("sell-office-styles");
+      if (styleToRemove) {
+        styleToRemove.remove();
+      }
+    };
+  }, []);
 
   const initialValues = {
     // Property Details
