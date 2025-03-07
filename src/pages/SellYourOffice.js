@@ -351,18 +351,21 @@ const SellYourOffice = () => {
         tenant_pays_taxes: values.tenantPaysTaxes,
         tenant_pays_insurance: values.tenantPaysInsurance,
 
-        // Document Information - Convert arrays to counts and concatenated names
+        // Document Information - Convert arrays to counts and include file numbers in names
         pnl_documents_count: values.pnlDocuments?.length || 0,
-        pnl_documents_names: values.pnlDocuments?.map(f => f.name).join('; ') || '',
+        pnl_documents_names: values.pnlDocuments?.map(f => `${f.fileNumber}. ${f.name}`).join('; ') || '',
         
         practice_pnl_documents_count: values.practicePnlDocuments?.length || 0,
-        practice_pnl_documents_names: values.practicePnlDocuments?.map(f => f.name).join('; ') || '',
+        practice_pnl_documents_names: values.practicePnlDocuments?.map(f => `${f.fileNumber}. ${f.name}`).join('; ') || '',
         
         lease_documents_count: values.leaseAgreement?.length || 0,
-        lease_documents_names: values.leaseAgreement?.map(f => f.name).join('; ') || '',
+        lease_documents_names: values.leaseAgreement?.map(f => `${f.fileNumber}. ${f.name}`).join('; ') || '',
         
         other_documents_count: values.otherDocuments?.length || 0,
-        other_documents_names: values.otherDocuments?.map(f => f.name).join('; ') || '',
+        other_documents_names: values.otherDocuments?.map(f => `${f.fileNumber}. ${f.name}`).join('; ') || '',
+        
+        mortgage_documents_count: values.mortgageStatement?.length || 0,
+        mortgage_documents_names: values.mortgageStatement?.map(f => `${f.fileNumber}. ${f.name}`).join('; ') || '',
 
         // Metadata
         created_at: new Date().toISOString(),
@@ -400,7 +403,7 @@ const SellYourOffice = () => {
               try {
                 const timestamp = new Date().getTime();
                 const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-                const fileName = `${type}_${timestamp}_${safeFileName}`;
+                const fileName = `${type}_${file.fileNumber}_${timestamp}_${safeFileName}`;
                 const filePath = `${submissionId}/${type}/${fileName}`;
 
                 // Fix the storage upload syntax error
@@ -430,7 +433,8 @@ const SellYourOffice = () => {
                   public_url: publicUrlData?.publicUrl || null,
                   status: 'uploaded',
                   uploaded_at: new Date().toISOString(),
-                  submission_type: 'property_sale', // Add this missing field
+                  submission_type: 'property_sale',
+                  file_number: file.fileNumber, // Add file number to the record
                 };
 
                 console.log('Attempting to insert file record:', fileRecord);
@@ -560,8 +564,18 @@ const SellYourOffice = () => {
         return true;
       });
 
-      // Append new files to existing ones
-      const updatedFiles = [...files, ...validFiles];
+      // Append new files to existing ones and add file number
+      const lastFileNumber = files.length > 0 ? 
+        Math.max(...files.map(f => f.fileNumber || 0)) : 0;
+      
+      const filesWithNumbers = validFiles.map((file, index) => {
+        // Add fileNumber property to each file
+        return Object.assign(file, {
+          fileNumber: lastFileNumber + index + 1
+        });
+      });
+
+      const updatedFiles = [...files, ...filesWithNumbers];
       onFileSelect(updatedFiles);
     };
 
@@ -571,7 +585,14 @@ const SellYourOffice = () => {
 
     const handleRemoveFile = (index, e) => {
       e.stopPropagation();
-      const updatedFiles = files.filter((_, i) => i !== index);
+      const updatedFiles = [...files];
+      updatedFiles.splice(index, 1);
+      
+      // Renumber remaining files sequentially
+      updatedFiles.forEach((file, idx) => {
+        file.fileNumber = idx + 1;
+      });
+      
       onFileSelect(updatedFiles);
     };
 
@@ -597,6 +618,7 @@ const SellYourOffice = () => {
             <div className="file-list">
               {files.map((file, index) => (
                 <div key={index} className="file-info">
+                  <span className="file-number">{file.fileNumber}</span>
                   <span className="file-name">{file.name}</span>
                   <button 
                     type="button" 
@@ -1396,6 +1418,21 @@ const styles = `
   white-space: nowrap;
 }
 
+.file-number {
+  background-color: #0056b3;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
 .form-hint {
   font-size: 0.875rem;
   color: #666;
@@ -1589,11 +1626,250 @@ const styles = `
     height: 150px;
   }
 }
-`;
 
-// Add the styles to the document
-const styleSheet = document.createElement("style");
-styleSheet.innerText = styles;
-document.head.appendChild(styleSheet);
+.file-upload-box {
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
 
+.file-upload-box.dragging {
+  background-color: #f8f9fa;
+  border-color: #0056b3;
+}
+
+.file-upload-box.has-error {
+  border-color: #dc3545;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.file-name {
+  flex: 1;
+  margin-right: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-number {
+  background-color: #0056b3;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.form-hint {
+  font-size: 0.875rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.lease-responsibilities {
+  margin-top: 1.5rem;
+}
+
+.lease-responsibilities .section-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-left: 1rem;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+/* Common Fees Styles */
+.common-fees-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 1rem 0;
+  margin-bottom: 1.5rem;
+}
+
+.fee-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.fee-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.fee-hint {
+  font-size: 0.875rem;
+  color: #666;
+  margin-left: 1.5rem;
+}
+
+.fee-amount-input {
+  margin-top: 0.5rem;
+  max-width: 200px;
+}
+
+.fees-container {
+  margin-top: 1rem;
+}
+
+.fee-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.fee-type {
+  flex: 2;
+}
+
+.fee-amount {
+  flex: 1;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .common-fees-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .fee-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .fee-type, .fee-amount {
+    width: 100%;
+  }
+}
+
+/* Form layout with notes sidebar */
+.form-layout {
+  display: flex;
+  gap: 2rem;
+  position: relative;
+}
+
+.notes-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 20px;
+  height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e0e0e0;
+}
+
+.notes-header {
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #f5f5f5;
+}
+
+.notes-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.notes-textarea {
+  width: 100%;
+  height:800px;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.notes-hint {
+  font-size: 0.85rem;
+  color: #666;
+  padding: 0.75rem;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.notes-hint ul {
+  margin-top: 0.5rem;
+  padding-left: 1.5rem;
+}
+
+.notes-hint li {
+  margin-bottom: 0.25rem;
+}
+
+.main-form-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Responsive styles for smaller screens */
+@media (max-width: 992px) {
+  .form-layout {
+    flex-direction: column;
+  }
+  
+  .notes-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 1.5rem;
+  }
+  
+  .notes-textarea {
+    height: 150px;
+  }
+}
+`
 export default SellYourOffice;
