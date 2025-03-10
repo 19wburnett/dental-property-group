@@ -295,7 +295,7 @@ const QuickPropertySubmission = () => {
                   )}
 
                   <div className="form-group">
-                    <label>What are you hoping to sell your building for? ($) *</label>
+                    <label>What number would the seller be willing to let the property go for? *</label>
                     <Field
                       name="askingPrice"
                       type="number"
