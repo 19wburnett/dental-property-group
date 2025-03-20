@@ -706,11 +706,11 @@ const SellYourOffice = () => {
       case 1: // Property Details
         return (
           <div className="form-step">
-            <h2>I'm going to be asking you a few questions about your property</h2>
+            <h2><i>I'm going to be asking you a few questions about your property</i></h2>
             <p>We do this in order to get you an offer. It shouldn't take longer than 30 minutes</p>
             
             <div className="form-group">
-              <label>What is the street address of the property?*</label>
+              <label><i>What is the street address of the property?*</i></label>
               <Field 
                 name="streetAddress" 
                 className="form-control" 
@@ -722,7 +722,7 @@ const SellYourOffice = () => {
 
             <div className="address-grid">
               <div className="form-group" style={{marginRight:'24px'}}>
-                <label>City*</label>
+                <label><i>City*</i></label>
                 <Field 
                   name="city" 
                   className="form-control" 
@@ -733,7 +733,7 @@ const SellYourOffice = () => {
               </div>
 
               <div className="form-group">
-                <label>State*</label>
+                <label><i>State*</i></label>
                 <Field 
                   name="state" 
                   as="select" 
@@ -750,7 +750,7 @@ const SellYourOffice = () => {
               </div>
 
               <div className="form-group">
-                <label>ZIP Code*</label>
+                <label><i>ZIP Code*</i></label>
                 <Field 
                   name="zipCode" 
                   className="form-control" 
@@ -762,7 +762,7 @@ const SellYourOffice = () => {
             </div>
 
             <div className="form-group">
-              <label>What is the size of the property in square feet?</label>
+              <label><i>What is the size of the property in square feet?</i></label>
               <Field name="propertySize" type="number" className="form-control" />
               {props.errors.propertySize && props.touched.propertySize && 
                 <div className="error">{props.errors.propertySize}</div>}
@@ -790,9 +790,9 @@ const SellYourOffice = () => {
 
         return (
           <div className="form-step">
-            <h2>Now I'm going to ask a few questions about the building</h2>
+            <h2><i>Now I'm going to ask a few questions about the building</i></h2>
             <div className="form-group">
-              <label>Is the property a condominium or is it a whole building?</label>
+              <label><i>Is the property a condominium or is it a whole building?</i></label>
               <Field name="buildingType" as="select" className="form-control">
                 <option value="">Select Property Type</option>
                 <option value="condo">Condominium</option>
@@ -803,7 +803,7 @@ const SellYourOffice = () => {
             </div>
             
             <div className="form-group">
-              <label>What year was the building built?</label>
+              <label><i>What year was the building built?</i></label>
               <Field name="yearBuilt" type="number" className="form-control" />
               {props.errors.yearBuilt && props.touched.yearBuilt && 
                 <div className="error">{props.errors.yearBuilt}</div>}
@@ -812,13 +812,13 @@ const SellYourOffice = () => {
             <div className="form-group">
               <label>
                 <Field type="checkbox" name="hasBeenRenovated" />
-                Has the building been renovated?
+                <i>Has the building been renovated?</i>
               </label>
             </div>
 
             {props.values.hasBeenRenovated && (
               <div className="form-group">
-                <label>When was the last time it was rennovated?</label>
+                <label><i>When was the last time it was renovated?</i></label>
                 <Field name="renovationYear" type="number" className="form-control" />
                 {props.errors.renovationYear && props.touched.renovationYear && 
                   <div className="error">{props.errors.renovationYear}</div>}
@@ -909,21 +909,22 @@ const SellYourOffice = () => {
 
       case 3: // Repairs & Maintenance
         const repairItems = [
-          { key: 'roof', label: 'When was the last time the roof was repaired?' },
-          { key: 'siding', label: 'When was the last time siding was done?' },
-          { key: 'windowsanddoors', label: 'When was the last time windows and doors were repaired?' },
-          { key: 'hvac', label: 'When was the last time the HVAC was repaired?' },
-          { key: 'signage', label: 'When was the last time signage was repaired?' },
-          { key: 'walkways', label: 'When was the last time the walkways were repaired?' },
-          { key: 'parkinglot', label: 'When was the last time the parking lot was repaired?' },
-          { key: 'landscaping', label: 'When was the last time the landscaping was done?' },
-          { key: 'foundation', label: 'When was the last time the foundation was repaired?' },
+          { key: 'roof', label: 'Roof' },
+          { key: 'siding', label: 'Siding' },
+          { key: 'windowsanddoors', label: 'Windows and Doors' },
+          { key: 'hvac', label: 'HVAC' },
+          { key: 'signage', label: 'Signage' },
+          { key: 'walkways', label: 'Walkways' },
+          { key: 'parkinglot', label: 'Parking Lot' },
+          { key: 'landscaping', label: 'Landscaping' },
+          { key: 'foundation', label: 'Foundation' },
           // Removed othercapex from here as it will be handled separately
         ];
 
         return (
           <div className="form-step">
-            <h2>Now let's talk about repairs and maintenance that you have done on the property</h2>
+            <h2><i>Now let's talk about repairs and maintenance that you have done on the property</i></h2>
+            <p><i>When was the last time _______ was repaired and how much did it cost?</i></p>
             <p>If you can't remember exact dates and numbers, no worries, just put your best guess.</p>
             <div className="form-group repairs-grid">
               {repairItems.map(({ key, label }) => {
@@ -1052,8 +1053,8 @@ const SellYourOffice = () => {
 
         return (
           <div className="form-step">
-            <h2>Now lets talk about future repairs</h2>
-            <p>Out of all those items we just went through, what repairs should be planned for in the next 5 years. I'll go through them 1 by 1. </p>
+            <h2><i>Now lets talk about future repairs</i></h2>
+            <p><i>Out of all those items we just went through, what repairs should be planned for in the next 5 years?</i></p>
             <div className="form-group repairs-grid">
               {futureRepairItems.map(({ key, label }) => {
                 // Ensure the future repair object exists for this key
@@ -1156,11 +1157,11 @@ const SellYourOffice = () => {
       case 5: // Financial Details
         return (
           <div className="form-step">
-            <h2>Let's talk about a few more important details and then we will be done</h2>
+            <h2><i>Let's talk about a few more important details and then we will be done</i></h2>
             
             {/* Add asking price field */}
             <div className="form-group">
-              <label>What number would the seller be willing to let the property go for? *</label>
+              <label><i>What number would the seller be willing to let the property go for? *</i></label>
               <Field
                 name="askingPrice"
                 type="number"
@@ -1175,21 +1176,21 @@ const SellYourOffice = () => {
             </div>
 
             <div className="form-group">
-              <label>What is the legal name of the practice?</label>
+              <label><i>What is the legal name of the practice?</i></label>
               <Field name="practiceName" className="form-control" />
               {props.errors.practiceName && props.touched.practiceName && 
                 <div className="error">{props.errors.practiceName}</div>}
             </div>
 
             <div className="form-group">
-              <label>How many tenants are there in the building that you own?</label>
+              <label><i>How many tenants are there in the building that you own?</i></label>
               <Field name="numberOfTenants" type="number" className="form-control" />
               {props.errors.numberOfTenants && props.touched.numberOfTenants && 
                 <div className="error">{props.errors.numberOfTenants}</div>}
             </div>
 
             <div className="form-group lease-responsibilities">
-              <label className="section-label">Of the following expenses, which ones are you paying for?</label>
+              <label className="section-label"><i>Of the following expenses, which ones is the tenant paying for?</i></label>
               <div className="checkbox-group">
                 <label>
                   <Field type="checkbox" name="tenantPaysUtilities" />
@@ -1259,12 +1260,12 @@ const SellYourOffice = () => {
           <div className="form-step">
             <h2>DSO Contact Information</h2>
             <div className="form-group">
-              <label>Which DSO contact should we reach out to about this deal?*</label>
+              <label><i>Which DSO contact should we reach out to about this deal?*</i></label>
               <Field name="name" className="form-control" placeholder="Name" />
               {props.errors.name && props.touched.name && <div className="error">{props.errors.name}</div>}
             </div>
             <div className="form-group">
-              <label>What is the best email to reach you?*</label>
+              <label><i>What is the best email to reach you?*</i></label>
               <Field name="email" type="email" className="form-control" placeholder="Email"/>
               {props.errors.email && props.touched.email && <div className="error">{props.errors.email}</div>}
             </div>
