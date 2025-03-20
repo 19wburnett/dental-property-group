@@ -5,6 +5,8 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true
 });
 
+export default openai;
+
 // ...existing code...
 
 export const generateAIResponse = async (userInput, documents) => {

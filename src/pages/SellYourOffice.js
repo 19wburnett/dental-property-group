@@ -19,7 +19,12 @@ const validationSchema = Yup.object({
 
   // Property Details (Required)
   
-  fullAddress: Yup.string().required('Address is required'),
+  streetAddress: Yup.string().required('Street address is required'),
+  city: Yup.string().required('City is required'),
+  state: Yup.string().required('State is required'),
+  zipCode: Yup.string()
+    .matches(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code format')
+    .required('ZIP code is required'),
   
   // Property Details (Optional)
   propertySize: Yup.number().nullable(),
@@ -84,6 +89,11 @@ const validationSchema = Yup.object({
 
   // Add notes field validation
   notes: Yup.string().nullable(),
+
+  // Add asking price validation
+  askingPrice: Yup.number()
+    .min(0, 'Must be 0 or greater')
+    .required('Required'),
 });
 
 const SellYourOffice = () => {
@@ -118,7 +128,10 @@ const SellYourOffice = () => {
 
   const initialValues = {
     // Property Details
-    fullAddress: '',  // New consolidated address field
+    streetAddress: '',
+    city: '',
+    state: '',
+    zipCode: '',
     propertySize: '',
     
     // Building Information
@@ -192,6 +205,9 @@ const SellYourOffice = () => {
 
     // Add notes field
     notes: '',
+
+    // Add asking price to initial values
+    askingPrice: '',
   };
 
   // US States array for the dropdown
@@ -251,7 +267,7 @@ const SellYourOffice = () => {
   ];
 
   const handleSubmit = async (values, { setSubmitting, resetForm }) => {
-    console.log('Form is being submitted with values:', values); // Debugging line
+    console.log('Form is being submitted with values:', values);
     try {
       // Validate files before submission
       const validateFiles = (files) => {
@@ -291,8 +307,11 @@ const SellYourOffice = () => {
         email: values.email,
         phone: values.phone,
 
-        // Property Details
-        address: values.fullAddress,  // Use consolidated address field
+        // Property Details - Remove the concatenated address field and keep individual fields
+        street_address: values.streetAddress,
+        city: values.city,
+        state: values.state,
+        zip_code: values.zipCode,
         property_size: values.propertySize ? Number(values.propertySize) : null,
 
         // Building Information
@@ -400,6 +419,9 @@ const SellYourOffice = () => {
 
         // Include notes in submission
         notes: values.notes,
+
+        // Add asking price to submission
+        asking_price: Number(values.askingPrice),
       };
 
       // Insert into Supabase
@@ -512,17 +534,23 @@ const SellYourOffice = () => {
   };
 
   const steps = [
-    { number: 1},
-    { number: 2},
-    { number: 3},
-    { number: 4 },
-    { number: 5 },
-    { number: 6 },
-    { number: 7 }
+    { number: 1, label: 'Property' },
+    { number: 2, label: 'Building' },
+    { number: 3, label: 'Repairs' },
+    { number: 4, label: 'Future' },
+    { number: 5, label: 'Financial' },
+    { number: 6, label: 'Documents' },
+    { number: 7, label: 'Contact' }
   ];
 
   const ProgressBar = () => {
     const progress = ((step - 1) / (steps.length - 1)) * 100;
+    
+    const handleStepClick = (stepNumber) => {
+      // Allow clicking on any step
+      setStep(stepNumber);
+    };
+
     return (
       <div className="progress-bar-container">
         <div className="progress-steps">
@@ -530,7 +558,10 @@ const SellYourOffice = () => {
           {steps.map((s) => (
             <div
               key={s.number}
-              className={`step ${step === s.number ? 'active' : step > s.number ? 'completed' : ''}`}
+              className={`step ${step === s.number ? 'active' : step > s.number ? 'completed' : ''} clickable`}
+              onClick={() => handleStepClick(s.number)}
+              role="button"
+              tabIndex={0}
             >
               {step > s.number ? '✓' : s.number}
               <span className="step-label">{s.label}</span>
@@ -677,20 +708,59 @@ const SellYourOffice = () => {
           <div className="form-step">
             <h2>I'm going to be asking you a few questions about your property</h2>
             <p>We do this in order to get you an offer. It shouldn't take longer than 30 minutes</p>
+            
             <div className="form-group">
-              <label>What is the address of the property?</label>
+              <label>What is the street address of the property?*</label>
               <Field 
-                name="fullAddress" 
+                name="streetAddress" 
                 className="form-control" 
-                placeholder="Enter the complete address (street, city, state, ZIP)"
+                placeholder="Enter street address"
               />
-              {props.errors.fullAddress && props.touched.fullAddress && 
-                <div className="error">{props.errors.fullAddress}</div>}
-              <div className="form-hint">
-                Please enter the full address including street, city, state and ZIP code
+              {props.errors.streetAddress && props.touched.streetAddress && 
+                <div className="error">{props.errors.streetAddress}</div>}
+            </div>
+
+            <div className="address-grid">
+              <div className="form-group" style={{marginRight:'24px'}}>
+                <label>City*</label>
+                <Field 
+                  name="city" 
+                  className="form-control" 
+                  placeholder="Enter city"
+                />
+                {props.errors.city && props.touched.city && 
+                  <div className="error">{props.errors.city}</div>}
+              </div>
+
+              <div className="form-group">
+                <label>State*</label>
+                <Field 
+                  name="state" 
+                  as="select" 
+                  className="form-control"
+                >
+                  {states.map(state => (
+                    <option key={state.value} value={state.value}>
+                      {state.label}
+                    </option>
+                  ))}
+                </Field>
+                {props.errors.state && props.touched.state && 
+                  <div className="error">{props.errors.state}</div>}
+              </div>
+
+              <div className="form-group">
+                <label>ZIP Code*</label>
+                <Field 
+                  name="zipCode" 
+                  className="form-control" 
+                  placeholder="Enter ZIP code"
+                />
+                {props.errors.zipCode && props.touched.zipCode && 
+                  <div className="error">{props.errors.zipCode}</div>}
               </div>
             </div>
-            
+
             <div className="form-group">
               <label>What is the size of the property in square feet?</label>
               <Field name="propertySize" type="number" className="form-control" />
@@ -983,7 +1053,7 @@ const SellYourOffice = () => {
         return (
           <div className="form-step">
             <h2>Now lets talk about future repairs</h2>
-            <p>Out of all those items we just went through, what repairs should be planned for in the next 5 years. I’ll go through them 1 by 1. </p>
+            <p>Out of all those items we just went through, what repairs should be planned for in the next 5 years. I'll go through them 1 by 1. </p>
             <div className="form-group repairs-grid">
               {futureRepairItems.map(({ key, label }) => {
                 // Ensure the future repair object exists for this key
@@ -1087,6 +1157,23 @@ const SellYourOffice = () => {
         return (
           <div className="form-step">
             <h2>Let's talk about a few more important details and then we will be done</h2>
+            
+            {/* Add asking price field */}
+            <div className="form-group">
+              <label>What number would the seller be willing to let the property go for? *</label>
+              <Field
+                name="askingPrice"
+                type="number"
+                className="form-control"
+                onChange={(e) => {
+                  const rawValue = e.target.value.replace(/[^\d]/g, '');
+                  props.setFieldValue('askingPrice', rawValue);
+                }}
+              />
+              {props.errors.askingPrice && props.touched.askingPrice && 
+                <div className="error">{props.errors.askingPrice}</div>}
+            </div>
+
             <div className="form-group">
               <label>What is the legal name of the practice?</label>
               <Field name="practiceName" className="form-control" />
@@ -1385,50 +1472,6 @@ const styles = `
 .file-info {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.remove-file {
-  background: none;
-  border: none;
-  color: #dc3545;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  font-size: 1rem;
-}
-
-.file-error {
-  color: #dc3545;
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.file-upload-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.file-upload-icon {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.file-name {
-  word-break: break-all;
-}
-
-.file-list {
-  width: 100%;
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
   padding: 0.5rem;
   margin-bottom: 0.5rem;
@@ -1573,7 +1616,7 @@ const styles = `
 }
 
 .notes-sidebar {
-  width: 300px;
+  width: 300px ;
   flex-shrink: 0;
   position: sticky;
   top: 20px;
@@ -1600,7 +1643,7 @@ const styles = `
 }
 
 .notes-textarea {
-  width: 100%;
+  width: 90%;
   height:800px;
   padding: 0.75rem;
   border: 1px solid #ddd;
@@ -1653,248 +1696,57 @@ const styles = `
   }
 }
 
-.file-upload-box {
-  border: 2px dashed #ccc;
-  border-radius: 4px;
-  padding: 2rem;
-  text-align: center;
+.step.clickable {
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: transform 0.2s ease;
 }
 
-.file-upload-box.dragging {
-  background-color: #f8f9fa;
-  border-color: #0056b3;
+.step.clickable:hover {
+  transform: scale(1.1);
 }
 
-.file-upload-box.has-error {
-  border-color: #dc3545;
+.step.clickable:focus {
+  outline: 2px solid #0056b3;
+  outline-offset: 2px;
 }
 
-.file-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem;
-  margin-bottom: 0.5rem;
-  background: #f8f9fa;
-  border-radius: 4px;
+.step {
+  position: relative;
 }
 
-.file-name {
-  flex: 1;
-  margin-right: 1rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.step-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
   white-space: nowrap;
-}
-
-.file-number {
-  background-color: #0056b3;
-  color: white;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
-  margin-right: 10px;
-  flex-shrink: 0;
-}
-
-.form-hint {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: #666;
-  margin-bottom: 0.5rem;
+  margin-top: 0.25rem;
 }
 
-.lease-responsibilities {
-  margin-top: 1.5rem;
+.step.active .step-label {
+  color: #0056b3;
+  font-weight: 600;
 }
 
-.lease-responsibilities .section-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
+.progress-bar-container {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
 }
 
-.checkbox-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-left: 1rem;
-}
-
-.checkbox-group label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-}
-
-/* Common Fees Styles */
-.common-fees-container {
+.address-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-  padding: 1rem 0;
-  margin-bottom: 1.5rem;
-}
-
-.fee-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  background-color: #f9f9f9;
-  border-radius: 4px;
-}
-
-.fee-item label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.fee-hint {
-  font-size: 0.875rem;
-  color: #666;
-  margin-left: 1.5rem;
-}
-
-.fee-amount-input {
-  margin-top: 0.5rem;
-  max-width: 200px;
-}
-
-.fees-container {
-  margin-top: 1rem;
-}
-
-.fee-row {
-  display: flex;
-  align-items: center;
+  grid-template-columns: 2fr 1fr 1fr;
   gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.fee-type {
-  flex: 2;
-}
-
-.fee-amount {
-  flex: 1;
+  margin-bottom: 1rem;
 }
 
 /* Mobile responsive styles */
 @media (max-width: 768px) {
-  .common-fees-container {
+  .address-grid {
     grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .fee-row {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 0.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #eee;
-  }
-  
-  .fee-type, .fee-amount {
-    width: 100%;
-  }
-}
-
-/* Form layout with notes sidebar */
-.form-layout {
-  display: flex;
-  gap: 2rem;
-  position: relative;
-}
-
-.notes-sidebar {
-  width: 300px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 20px;
-  height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #e0e0e0;
-}
-
-.notes-header {
-  font-size: 1.2rem;
-  font-weight: 600;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #e0e0e0;
-  background-color: #f5f5f5;
-}
-
-.notes-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  padding: 1rem;
-}
-
-.notes-textarea {
-  width: 100%;
-  height:800px;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  resize: none;
-  font-family: inherit;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-}
-
-.notes-hint {
-  font-size: 0.85rem;
-  color: #666;
-  padding: 0.75rem;
-  background-color: #f9f9f9;
-  border-radius: 4px;
-}
-
-.notes-hint ul {
-  margin-top: 0.5rem;
-  padding-left: 1.5rem;
-}
-
-.notes-hint li {
-  margin-bottom: 0.25rem;
-}
-
-.main-form-content {
-  flex: 1;
-  min-width: 0;
-}
-
-/* Responsive styles for smaller screens */
-@media (max-width: 992px) {
-  .form-layout {
-    flex-direction: column;
-  }
-  
-  .notes-sidebar {
-    width: 100%;
-    height: auto;
-    position: static;
-    border-right: none;
-    border-bottom: 1px solid #e0e0e0;
-    margin-bottom: 1.5rem;
-  }
-  
-  .notes-textarea {
-    height: 150px;
   }
 }
 `
